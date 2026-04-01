@@ -284,6 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const gBtn = document.getElementById('fetch-gsheet-btn');
         if (gBtn) gBtn.style.display = '';
 
+        // 실사 데이터 GSheet 버튼도 복원 (새 비교 시 재사용 가능해야 함)
+        const gPhysBtn = document.getElementById('fetch-physical-gsheet-btn');
+        if (gPhysBtn) gPhysBtn.style.display = 'flex';
+
         document.getElementById('column-mapping-section').style.display = 'none';
 
         if (AppState.charts.bar) { AppState.charts.bar.destroy(); AppState.charts.bar = null; }
