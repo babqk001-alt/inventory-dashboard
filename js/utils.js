@@ -103,14 +103,35 @@ function safeInt(val) {
  * @param {string} message
  * @param {'info'|'success'|'warning'|'error'} [type='info']
  */
-function toast(message, type = 'info') {
+function toast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
+
+    const icons = {
+        success: 'fa-circle-check',
+        error:   'fa-circle-xmark',
+        warning: 'fa-triangle-exclamation',
+        info:    'fa-circle-info'
+    };
+
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.textContent = message;
+    el.innerHTML =
+        `<i class="fas ${icons[type] || icons.info} toast-icon"></i>` +
+        `<span class="toast-text">${message}</span>` +
+        `<div class="toast-progress"><div class="toast-progress-bar"></div></div>`;
+
+    // 프로그레스 바 애니메이션
+    const bar = el.querySelector('.toast-progress-bar');
+    if (bar) {
+        bar.style.animationDuration = duration + 'ms';
+    }
+
     container.appendChild(el);
-    setTimeout(() => el.remove(), 3100);
+    setTimeout(() => {
+        el.classList.add('toast-exit');
+        setTimeout(() => el.remove(), 300);
+    }, duration);
 }
 
 // ── 비동기 유틸리티 ───────────────────────────────────────

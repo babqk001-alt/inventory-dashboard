@@ -88,16 +88,16 @@ function renderMainTable() {
             const doneClass = isDone ? ' row-done' : '';
 
             html += `<tr class="${rowClass}${doneClass}" data-row-id="${rowId}" id="row-${rowId}">`;
-            html += `<td>${startIdx + i + 1}</td>`;
-            html += `<td>${esc(r.sku)}</td>`;
-            html += `<td>${esc(r.barcode)}</td>`;
-            html += `<td>${esc(r.name)}</td>`;
-            html += `<td>${esc(r.location)}</td>`;
-            html += `<td>${esc(r.warehouseZone)}</td>`;
-            html += `<td>${formatNum(r.empQty)}</td>`;
+            html += `<td data-label="#">${startIdx + i + 1}</td>`;
+            html += `<td data-label="SKU">${esc(r.sku)}</td>`;
+            html += `<td data-label="바코드">${esc(r.barcode)}</td>`;
+            html += `<td data-label="상품명">${esc(r.name)}</td>`;
+            html += `<td data-label="위치">${esc(r.location)}</td>`;
+            html += `<td data-label="구역">${esc(r.warehouseZone)}</td>`;
+            html += `<td data-label="EMP수량">${formatNum(r.empQty)}</td>`;
 
             // 실사 수량 셀
-            html += `<td><div class="live-qty-cell">`;
+            html += `<td data-label="실사수량"><div class="live-qty-cell">`;
             if (!isDone) {
                 html += `<button type="button" class="qty-btn qty-minus" data-row-id="${rowId}" title="−1">−</button>`;
                 html += `<input type="number" class="live-qty-input" data-row-id="${rowId}" value="${r.physicalQty}" min="0" step="1">`;
@@ -108,11 +108,11 @@ function renderMainTable() {
             html += `<button type="button" class="qty-btn qty-done${isDone ? ' is-done' : ''}" data-row-id="${rowId}" title="${isDone ? '완료 취소' : '완료'}">✓</button>`;
             html += `</div></td>`;
 
-            html += `<td class="${getDiffClass(r.difference)}" data-diff-cell="${rowId}">${r.difference > 0 ? '+' : ''}${formatNum(r.difference)}</td>`;
-            html += `<td data-status-cell="${rowId}">${statusBadge(r.status)}</td>`;
+            html += `<td data-label="차이" class="${getDiffClass(r.difference)}" data-diff-cell="${rowId}">${r.difference > 0 ? '+' : ''}${formatNum(r.difference)}</td>`;
+            html += `<td data-label="상태" data-status-cell="${rowId}">${statusBadge(r.status)}</td>`;
 
             // 조정 사유 select
-            html += `<td><select class="reason-select" data-row-id="${rowId}"${isDone ? ' disabled' : ''}>`;
+            html += `<td data-label="사유"><select class="reason-select" data-row-id="${rowId}"${isDone ? ' disabled' : ''}>`;
             REASON_OPTIONS.forEach(opt => {
                 const selected = r.reason === opt.value ? ' selected' : '';
                 html += `<option value="${esc(opt.value)}"${selected}>${esc(opt.label)}</option>`;
@@ -120,7 +120,7 @@ function renderMainTable() {
             html += `</select></td>`;
 
             // 메모 input
-            html += `<td><input type="text" class="memo-input" data-row-id="${rowId}" value="${esc(r.memo || '')}" placeholder="메모 입력..."${isDone ? ' disabled' : ''}></td>`;
+            html += `<td data-label="메모"><input type="text" class="memo-input" data-row-id="${rowId}" value="${esc(r.memo || '')}" placeholder="메모 입력..."${isDone ? ' disabled' : ''}></td>`;
 
             html += '</tr>';
         });
