@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>재고 비교 대시보드 | Inventory Comparison Dashboard</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <!-- html5-qrcode (카메라 바코드 스캔) -->
+    <script src="https://unpkg.com/html5-qrcode" defer></script>
+
+    <!-- Firebase (App + Auth + Realtime Database) — compat SDK v10.8.0 -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js" defer></script>
+
+    <!-- SheetJS (xlsx-js-style): 동적 로드 — loadXLSX() 호출 시 필요할 때만 로드됨 -->
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- PHASE 1: FILE UPLOAD & COLUMN MAPPING                -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="upload-phase" class="phase active">
+        <div class="upload-container">
+            <div class="upload-header">
+                <div class="logo-icon"><i class="fas fa-boxes-stacked"></i></div>
+                <h1>재고 비교 대시보드</h1>
+                <p class="subtitle">Inventory Comparison Dashboard</p>
+                <p class="description">EMP 재고 데이터와 실사 재고 데이터를 비교하여 수량 불일치, 누락 항목, 위치 차이를 한눈에 확인합니다.</p>
+            </div>
+
+            <div class="upload-cards">
+                <!-- EMP Data Upload (Required) -->
+                <div class="upload-card" id="emp-upload-card">
+                    <div class="card-badge emp">EMP 데이터 <span class="badge-required">필수</span></div>
+                    <div class="upload-dropzone" id="emp-dropzone">
+                        <i class="fas fa-cloud-arrow-up"></i>
+                        <p>CSV 또는 Excel 파일을 드래그하거나 클릭하세요</p>
+                        <span class="file-hint">.csv, .xlsx, .xls 지원</span>
+                        <input type="file" id="emp-file-input" accept=".csv,.xlsx,.xls" hidden>
+                    </div>
+                    <div class="file-info" id="emp-file-info" style="display:none;">
+                        <i class="fas fa-file-check"></i>
+                        <span id="emp-file-name"></span>
+                        <button class="btn-remove" id="emp-remove-btn"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <!-- 구글 시트 EMP 불러오기 -->
+                    <button class="btn-primary btn-block" id="fetch-gsheet-btn" style="margin-top:16px; background:#10B981; border:none;">
+                        <i class="fas fa-cloud-arrow-down"></i> 구글 시트 최신 EMP 불러오기
+                    </button>
+                </div>
+
+                <!-- Physical Count Data Upload (Optional — 여러 파일 가능) -->
+                <div class="upload-card" id="physical-upload-card">
+                    <div class="card-badge physical">실사 데이터 <span class="badge-optional">선택</span></div>
+                    <div class="upload-dropzone" id="physical-dropzone">
+                        <i class="fas fa-cloud-arrow-up"></i>
+                        <p>CSV 또는 Excel 파일을 드래그하거나 클릭하세요</p>
+                        <span class="file-hint">.csv, .xlsx, .xls 지원 · 여러 파일 선택 가능 · 미업로드 시 실사 수량 0으로 시작</span>
+                        <input type="file" id="physical-file-input" accept=".csv,.xlsx,.xls" hidden multiple>
+                    </div>
+                    <button class="btn-gsheet-fetch physical-gsheet" id="fetch-physical-gsheet-btn" style="margin-top:16px; width:100%; padding:14px; border-radius:12px; background:#F59E0B; color:#fff; border:none; font-size:1rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                        <i class="fas fa-cloud-arrow-down"></i> 구글 시트 실사 데이터 불러오기
+                    </button>
+                    <div class="file-info" id="physical-file-info" style="display:none;">
+                        <i class="fas fa-file-check"></i>
+                        <span id="physical-file-name"></span>
+                        <button class="btn-remove" id="physical-remove-btn"><i class="fas fa-xmark"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Column Mapping Section -->
+            <div id="column-mapping-section" style="display:none;">
+                <h2><i class="fas fa-columns"></i> 컬럼 매핑 설정</h2>
+                <p class="mapping-desc">각 파일의 컬럼을 올바른 필드에 매핑해주세요.</p>
+
+                <div class="mapping-grid">
+                    <!-- EMP Column Mapping -->
+                    <div class="mapping-block">
+                        <h3 class="emp-label"><i class="fas fa-database"></i> EMP 데이터 컬럼 매핑</h3>
+                        <div class="mapping-fields" id="emp-mapping-fields">
+                            <div class="mapping-row"><label>SKU <span class="required">*</span></label><select id="emp-map-sku" class="map-select"></select></div>
+                            <div class="mapping-row"><label>바코드</label><select id="emp-map-barcode" class="map-select"></select></div>
+                            <div class="mapping-row"><label>상품명</label><select id="emp-map-name" class="map-select"></select></div>
+                            <div class="mapping-row"><label>수량 <span class="required">*</span></label><select id="emp-map-qty" class="map-select"></select></div>
+                            <div class="mapping-row"><label>위치 <span class="required">*</span></label><select id="emp-map-location" class="map-select"></select></div>
+                        </div>
+                    </div>
+
+                    <!-- Physical Column Mapping -->
+                    <div class="mapping-block" id="physical-mapping-block">
+                        <h3 class="physical-label"><i class="fas fa-clipboard-list"></i> 실사 데이터 컬럼 매핑</h3>
+                        <div class="mapping-fields" id="physical-mapping-fields">
+                            <div class="mapping-row"><label>SKU <span class="required">*</span></label><select id="physical-map-sku" class="map-select"></select></div>
+                            <div class="mapping-row"><label>바코드</label><select id="physical-map-barcode" class="map-select"></select></div>
+                            <div class="mapping-row"><label>상품명</label><select id="physical-map-name" class="map-select"></select></div>
+                            <div class="mapping-row"><label>수량 <span class="required">*</span></label><select id="physical-map-qty" class="map-select"></select></div>
+                            <div class="mapping-row"><label>위치 <span class="required">*</span></label><select id="physical-map-location" class="map-select"></select></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Preview -->
+                <div class="preview-section">
+                    <div class="preview-block">
+                        <h4><i class="fas fa-eye"></i> EMP 데이터 미리보기 (상위 5행)</h4>
+                        <div class="preview-table-wrap" id="emp-preview-wrap"></div>
+                    </div>
+                    <div class="preview-block" id="physical-preview-block">
+                        <h4><i class="fas fa-eye"></i> 실사 데이터 미리보기 (상위 5행)</h4>
+                        <div class="preview-table-wrap" id="physical-preview-wrap"></div>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button class="btn-primary btn-lg" id="run-comparison-btn">
+                        <i class="fas fa-magnifying-glass-chart"></i> 비교 분석 실행
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- PHASE 2: DASHBOARD                                   -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="dashboard-phase" class="phase">
+        <!-- Top Header Bar -->
+        <header class="dashboard-header">
+            <div class="header-top-row">
+                <div class="header-left">
+                    <button class="mobile-sidebar-toggle" id="mobile-sidebar-toggle" aria-label="필터 열기">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <i class="fas fa-boxes-stacked desktop-only"></i>
+                    <h1>재고 비교 대시보드</h1>
+                </div>
+                <div class="header-right">
+                    <!-- 담당자 배지 (Auth 로그인 후 표시) -->
+                    <div class="worker-badge" id="worker-badge" style="display:none;">
+                        <i class="fas fa-user-hard-hat"></i>
+                        <span id="worker-badge-name">-</span>
+                    </div>
+                    <!-- 다크모드 토글 -->
+                    <button class="btn-theme-toggle" id="theme-toggle-btn" title="다크모드 전환" aria-label="테마 전환">
+                        <i class="fas fa-moon" id="theme-icon"></i>
+                    </button>
+                    <button class="btn-outline desktop-only" id="new-comparison-btn"><i class="fas fa-rotate"></i> 새 비교</button>
+                    <button class="btn-primary btn-emp-refresh desktop-only" id="emp-refresh-btn"><i class="fas fa-cloud-arrow-down"></i> EMP 갱신</button>
+                    <button class="btn-primary desktop-only" id="export-csv-btn"><i class="fas fa-file-csv"></i> CSV</button>
+                    <button class="btn-primary btn-excel desktop-only" id="export-excel-btn"><i class="fas fa-file-excel"></i> Excel</button>
+                    <button class="btn-primary btn-recount desktop-only" id="export-recount-btn"><i class="fas fa-clipboard-check"></i> 재실사</button>
+                    <button class="btn-primary btn-adjustment desktop-only" id="export-adjustment-btn"><i class="fas fa-sliders"></i> 재고조정</button>
+                    <!-- Firebase 실시간 동기화 -->
+                    <div class="firebase-sync-wrap" id="firebase-sync-wrap">
+                        <!-- inline onclick 제거 → app.js 이벤트 위임 -->
+                        <button class="btn-firebase-sync" id="firebase-sync-btn">
+                            <i class="fas fa-tower-broadcast"></i>
+                            <span class="desktop-only">실시간 동기화</span>
+                        </button>
+                        <span class="firebase-sync-indicator" id="firebase-sync-indicator" style="display:none;"></span>
+                        <span class="firebase-session-label desktop-only" id="firebase-session-label"></span>
+                        <button class="btn-copy-session" id="btn-copy-session" style="display:none;" title="세션 URL 복사">
+                            <i class="fas fa-link"></i>
+                        </button>
+                    </div>
+                    <!-- 구글 드라이브 전송 -->
+                    <button class="btn-primary btn-drive-upload" id="btn-drive-upload">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span class="desktop-only">구글 드라이브로 실사 제출</span>
+                        <span class="mobile-only">드라이브 제출</span>
+                    </button>
+                    <!-- Admin 사용자 관리 (admin 역할에서만 표시) -->
+                    <button class="btn-primary btn-user-manage desktop-only" id="user-manage-btn" style="display:none;" title="사용자 관리">
+                        <i class="fas fa-users-gear"></i>
+                        <span class="desktop-only">사용자 관리</span>
+                    </button>
+                </div>
+            </div>
+            <!-- VIEW TOGGLE TABS -->
+            <div class="view-tabs">
+                <button class="view-tab active" data-view="overview" id="tab-overview">
+                    <i class="fas fa-chart-pie"></i> 종합 분석 뷰
+                </button>
+                <button class="view-tab" data-view="livecount" id="tab-livecount">
+                    <i class="fas fa-mobile-screen-button"></i> 현장 실사 뷰
+                </button>
+                <button class="view-tab" data-view="adjustment" id="tab-adjustment">
+                    <i class="fas fa-clipboard-check"></i> 재실사 · 재고조정
+                </button>
+            </div>
+        </header>
+
+        <!-- LIVE SCAN BAR (livecount 뷰에서만 표시) -->
+        <div class="live-scan-bar" id="live-scan-bar" style="display:none;">
+            <div class="scan-bar-inner">
+                <div class="scan-bar-left">
+                    <i class="fas fa-barcode scan-bar-icon"></i>
+                    <span class="scan-bar-label">바코드 고속 스캔</span>
+                </div>
+                <div class="scan-bar-center">
+                    <div class="scan-input-wrap">
+                        <i class="fas fa-crosshairs"></i>
+                        <input type="text" id="live-scan-input" placeholder="바코드 또는 SKU를 스캔/입력 후 Enter..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="scan-bar-right">
+                    <button class="btn-new-location" id="scan-new-loc-btn" style="display:none;" title="마지막 스캔 상품에 새 위치 추가">
+                        <i class="fas fa-map-pin"></i> 새 위치 추가
+                    </button>
+                    <button class="btn-camera-scan" id="camera-scan-btn" title="카메라 바코드 스캔">
+                        <i class="fas fa-camera"></i> 카메라 스캔
+                    </button>
+                    <div class="scan-status" id="scan-status">
+                        <span class="scan-status-dot"></span>
+                        <span class="scan-status-text">대기 중</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-body">
+            <!-- 모바일 사이드바 오버레이 -->
+            <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+            <aside class="sidebar" id="sidebar">
+                <!-- 모바일 사이드바 닫기 -->
+                <div class="sidebar-mobile-header">
+                    <span><i class="fas fa-sliders"></i> 필터 & 설정</span>
+                    <button class="sidebar-close-btn" id="sidebar-close-btn"><i class="fas fa-xmark"></i></button>
+                </div>
+
+                <!-- 담당자 설정 패널 -->
+                <div class="sidebar-section assignee-panel" id="assignee-panel">
+                    <div class="assignee-panel-header">
+                        <h3><i class="fas fa-users"></i> 담당자 설정</h3>
+                        <button class="assignee-reset-btn" id="assignee-reset-btn" title="전체 초기화">
+                            <i class="fas fa-rotate-left"></i> 초기화
+                        </button>
+                    </div>
+                    <label class="sidebar-label">담당자 추가</label>
+                    <div class="assignee-input-row">
+                        <input type="text" id="assignee-name-input" class="sidebar-input" placeholder="이름 입력 후 + 버튼..." maxlength="20">
+                        <button class="btn-sm btn-primary" id="assignee-save-btn" title="추가"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div id="assignee-chip-list" class="assignee-chip-list"></div>
+                    <label class="sidebar-label" id="assignee-zone-label" style="display:none;">구역 배정</label>
+                    <div id="assignee-zone-list" class="assignee-zone-list"></div>
+                    <button class="btn-outline btn-block btn-sm" id="my-zones-only-btn" style="margin-top:8px; display:none;">
+                        <i class="fas fa-user-check"></i> 내 구역만 보기
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-filter"></i> 필터</h3>
+                </div>
+                <div class="sidebar-section">
+                    <label class="sidebar-label">상태 필터</label>
+                    <div class="status-radio-group" id="status-filter-group">
+                        <label class="radio-item active" data-value="ALL"><input type="radio" name="status-filter" value="ALL" checked><span class="radio-badge all">전체</span></label>
+                        <label class="radio-item" data-value="MATCH"><input type="radio" name="status-filter" value="MATCH"><span class="radio-badge match">일치</span></label>
+                        <label class="radio-item" data-value="MISMATCH"><input type="radio" name="status-filter" value="MISMATCH"><span class="radio-badge mismatch">불일치</span></label>
+                        <label class="radio-item" data-value="LOCATION_SHIFT"><input type="radio" name="status-filter" value="LOCATION_SHIFT"><span class="radio-badge location-shift">타위치발견</span></label>
+                        <label class="radio-item" data-value="ONLY_IN_EMP"><input type="radio" name="status-filter" value="ONLY_IN_EMP"><span class="radio-badge only-emp">EMP에만 존재</span></label>
+                        <label class="radio-item" data-value="ONLY_IN_PHYSICAL"><input type="radio" name="status-filter" value="ONLY_IN_PHYSICAL"><span class="radio-badge only-physical">실사에만 존재</span></label>
+                        <label class="radio-item" data-value="ZERO_QTY"><input type="radio" name="status-filter" value="ZERO_QTY"><span class="radio-badge zero-qty">수량 0</span></label>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <label class="sidebar-label">창고 구역 (Zone)</label>
+                    <select id="zone-filter" class="sidebar-select"><option value="ALL">전체 구역</option></select>
+                </div>
+                <div class="sidebar-section">
+                    <label class="sidebar-label">세부 위치 (Location)</label>
+                    <select id="location-filter" class="sidebar-select"><option value="ALL">전체 위치</option></select>
+                    <p class="search-hint">스캔 시 이 위치를 우선 매칭합니다</p>
+                </div>
+                <div class="sidebar-section">
+                    <label class="sidebar-label">SKU / 상품명 검색</label>
+                    <div class="search-input-wrap"><i class="fas fa-search"></i><input type="text" id="search-input" placeholder="SKU 또는 상품명 입력..."></div>
+                    <p class="search-hint">Shift + F : 다중 검색 팝업</p>
+                </div>
+                <div class="sidebar-section">
+                    <button class="btn-outline btn-block" id="reset-filters-btn"><i class="fas fa-rotate-left"></i> 필터 초기화</button>
+                </div>
+                <div class="sidebar-section sidebar-summary" id="filter-summary">
+                    <p>필터 적용 결과: <strong id="filtered-count">0</strong>건</p>
+                </div>
+                <div class="sidebar-section sidebar-autosave" id="autosave-indicator">
+                    <i class="fas fa-cloud-arrow-up"></i><span id="autosave-text">자동저장 대기</span>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- 구역별 실사 진행률 패널 (livecount 뷰 전용) -->
+                <div class="zone-progress-panel" id="zone-progress-panel" style="display:none;">
+                    <!-- inline onclick 제거 → app.js 이벤트 위임 -->
+                    <div class="zone-progress-header" id="zone-progress-header">
+                        <div class="zone-progress-title">
+                            <i class="fas fa-map-marked-alt"></i>
+                            <span>구역별 실사 진행률</span>
+                        </div>
+                        <div class="zone-progress-header-right">
+                            <div class="scan-session-counter" id="scan-session-counter">
+                                <i class="fas fa-barcode"></i>
+                                <span class="counter-label">이번 세션 스캔</span>
+                                <span class="counter-value" id="session-scan-count">0</span>
+                                <span class="counter-unit">건</span>
+                                <!-- inline onclick 제거 → app.js 이벤트 위임 -->
+                                <button class="counter-reset-btn" id="counter-reset-btn" title="카운터 초기화">
+                                    <i class="fas fa-rotate-left"></i>
+                                </button>
+                            </div>
+                            <button class="zone-panel-toggle-btn" id="zone-panel-toggle-btn" title="접기/펼치기">
+                                <i class="fas fa-chevron-up"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="zone-progress-grid" id="zone-progress-grid"></div>
+                </div>
+
+                <!-- KPI 지표 행 -->
+                <section class="kpi-row" id="kpi-row">
+                    <div class="kpi-card"><div class="kpi-icon blue"><i class="fas fa-barcode"></i></div><div class="kpi-body"><span class="kpi-value" id="kpi-total">0</span><span class="kpi-sub" id="kpi-total-qty"></span><span class="kpi-label">분석된 총 항목</span></div></div>
+                    <div class="kpi-card"><div class="kpi-icon red"><i class="fas fa-triangle-exclamation"></i></div><div class="kpi-body"><span class="kpi-value" id="kpi-mismatch">0</span><span class="kpi-sub" id="kpi-mismatch-qty"></span><span class="kpi-label">수량 불일치</span></div></div>
+                    <div class="kpi-card"><div class="kpi-icon cyan"><i class="fas fa-arrows-turn-right"></i></div><div class="kpi-body"><span class="kpi-value" id="kpi-locshift">0</span><span class="kpi-sub" id="kpi-locshift-qty"></span><span class="kpi-label">타위치발견</span></div></div>
+                    <div class="kpi-card"><div class="kpi-icon orange"><i class="fas fa-ghost"></i></div><div class="kpi-body"><span class="kpi-value" id="kpi-missing">0</span><span class="kpi-sub" id="kpi-missing-qty"></span><span class="kpi-label">누락 (EMP에만)</span></div></div>
+                    <div class="kpi-card"><div class="kpi-icon green"><i class="fas fa-bullseye"></i></div><div class="kpi-body"><span class="kpi-value" id="kpi-accuracy">0%</span><span class="kpi-label">정확도</span></div></div>
+                </section>
+
+                <!-- 차트 행 (overview 뷰) -->
+                <section class="charts-row" id="charts-section">
+                    <div class="chart-card wide"><h3><i class="fas fa-chart-bar"></i> 구역별 불일치 건수</h3><div class="chart-container" style="height:340px;"><canvas id="zone-bar-chart"></canvas></div></div>
+                    <div class="chart-card narrow"><h3><i class="fas fa-chart-pie"></i> 상태 분포</h3><div class="chart-container" style="height:340px;"><canvas id="status-pie-chart"></canvas></div></div>
+                </section>
+
+                <!-- Top 10 차이 (overview 뷰) -->
+                <section class="top-diff-section" id="top-diff-section">
+                    <h3><i class="fas fa-ranking-star"></i> 수량 차이 TOP 10 (절대값 기준)</h3>
+                    <div class="table-wrap" id="top-diff-table-wrap"></div>
+                </section>
+
+                <!-- 상세 비교 데이터 테이블 -->
+                <section class="data-table-section">
+                    <div class="table-header-bar">
+                        <h3><i class="fas fa-table-list"></i> 상세 비교 데이터 <span class="live-badge" id="live-badge" style="display:none;">LIVE</span></h3>
+                        <div class="pagination-controls" id="pagination-controls">
+                            <button class="btn-page" id="prev-page-btn"><i class="fas fa-chevron-left"></i></button>
+                            <span id="page-info">1 / 1</span>
+                            <button class="btn-page" id="next-page-btn"><i class="fas fa-chevron-right"></i></button>
+                            <select id="page-size-select" class="sidebar-select" style="width:auto;margin-left:8px;">
+                                <option value="25">25행</option>
+                                <option value="50" selected>50행</option>
+                                <option value="100">100행</option>
+                                <option value="250">250행</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrap" id="main-table-wrap">
+                        <table id="main-data-table">
+                            <thead id="main-table-head"></thead>
+                            <tbody id="main-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- 재실사·재고조정 뷰 -->
+                <section id="adjustment-section" style="display:none;">
+                    <!-- 추가 데이터 병합 -->
+                    <div class="adj-merge-panel" id="adj-merge-panel">
+                        <div class="adj-merge-left">
+                            <i class="fas fa-layer-group adj-merge-icon"></i>
+                            <div class="adj-merge-text">
+                                <strong>추가 실사 데이터 병합</strong>
+                                <span>노션 구역 등 외부 실사 CSV/Excel을 불러와 현재 데이터에 합칩니다</span>
+                            </div>
+                        </div>
+                        <div class="adj-merge-right">
+                            <span class="adj-merge-status" id="adj-merge-status"></span>
+                            <button class="btn-primary" id="adj-merge-btn" style="background:#8B5CF6;">
+                                <i class="fas fa-file-circle-plus"></i> CSV/Excel 병합
+                            </button>
+                            <input type="file" id="adj-merge-file" accept=".csv,.xlsx,.xls" hidden>
+                        </div>
+                    </div>
+
+                    <!-- 조정 요약 KPI -->
+                    <div class="adj-summary-row" id="adj-summary-row">
+                        <div class="adj-summary-card adj-total"><div class="adj-summary-icon"><i class="fas fa-triangle-exclamation"></i></div><div class="adj-summary-body"><span class="adj-summary-value" id="adj-total">0</span><span class="adj-summary-label">조정 대상</span></div></div>
+                        <div class="adj-summary-card adj-plus"><div class="adj-summary-icon"><i class="fas fa-arrow-up"></i></div><div class="adj-summary-body"><span class="adj-summary-value" id="adj-plus">0</span><span class="adj-summary-label">증가 (+)</span></div></div>
+                        <div class="adj-summary-card adj-minus"><div class="adj-summary-icon"><i class="fas fa-arrow-down"></i></div><div class="adj-summary-body"><span class="adj-summary-value" id="adj-minus">0</span><span class="adj-summary-label">감소 (−)</span></div></div>
+                        <div class="adj-summary-card adj-recount"><div class="adj-summary-icon"><i class="fas fa-rotate"></i></div><div class="adj-summary-body"><span class="adj-summary-value" id="adj-recount-done">0/0</span><span class="adj-summary-label">재실사 완료</span></div></div>
+                    </div>
+
+                    <!-- 구역별 조정 요약 -->
+                    <div class="adj-zone-summary" id="adj-zone-summary">
+                        <h3><i class="fas fa-map-marked-alt"></i> 구역별 조정 요약</h3>
+                        <div class="adj-zone-grid" id="adj-zone-grid"></div>
+                    </div>
+
+                    <!-- 모드 선택 + 내보내기 -->
+                    <div class="adj-toolbar">
+                        <div class="adj-mode-toggle">
+                            <button class="adj-mode-btn active" data-adj-mode="recount" id="adj-mode-recount"><i class="fas fa-rotate"></i> 재실사 모드</button>
+                            <button class="adj-mode-btn" data-adj-mode="adjust" id="adj-mode-adjust"><i class="fas fa-sliders"></i> 재고조정 모드</button>
+                            <button class="adj-mode-btn" id="adj-sku-group-btn"><i class="fas fa-layer-group"></i> SKU 합산</button>
+                        </div>
+                        <div class="adj-actions">
+                            <button class="btn-primary btn-recount" id="adj-export-recount-btn"><i class="fas fa-clipboard-check"></i> 재실사 지시서</button>
+                            <button class="btn-primary btn-adjustment" id="adj-export-adjust-btn"><i class="fas fa-sliders"></i> EMP 조정 양식</button>
+                            <button class="btn-primary btn-recount-upload" id="adj-recount-upload-btn" style="background:#F59E0B;"><i class="fas fa-file-arrow-up"></i> 재실사 결과 업로드</button>
+                            <input type="file" id="adj-recount-file" accept=".csv,.xlsx,.xls" hidden>
+                        </div>
+                    </div>
+
+                    <!-- EMP 양식 미리보기 -->
+                    <div class="adj-preview" id="adj-emp-preview" style="display:none;">
+                        <h3><i class="fas fa-eye"></i> EMP 업로드 미리보기 <span class="adj-preview-count" id="adj-preview-count"></span></h3>
+                        <div class="table-wrap" id="adj-preview-table-wrap"></div>
+                    </div>
+
+                    <!-- 재실사/재고조정 테이블 -->
+                    <div class="adj-table-section">
+                        <div class="table-header-bar">
+                            <h3><i class="fas fa-list-check"></i> <span id="adj-table-title">재실사 대상 목록</span></h3>
+                            <div class="pagination-controls" id="adj-pagination">
+                                <button class="btn-page" id="adj-expand-all" title="전체 펼침/접기" style="display:none;"><i class="fas fa-angles-down"></i></button>
+                                <button class="btn-page" id="adj-prev-page"><i class="fas fa-chevron-left"></i></button>
+                                <span id="adj-page-info">1 / 1</span>
+                                <button class="btn-page" id="adj-next-page"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table id="adj-table">
+                                <thead id="adj-table-head"></thead>
+                                <tbody id="adj-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- 모달 / 오버레이                                       -->
+    <!-- ══════════════════════════════════════════════════════ -->
+
+    <!-- 다중 검색 모달 -->
+    <div id="multi-search-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header"><h3><i class="fas fa-magnifying-glass-plus"></i> 다중 검색</h3><button class="modal-close-btn" id="multi-search-close-btn"><i class="fas fa-xmark"></i></button></div>
+            <div class="modal-body">
+                <p class="modal-desc">여러 개의 SKU, 바코드, 상품명을 한 번에 검색합니다.<br>쉼표(,), 공백, 줄바꿈으로 구분하여 입력하세요.</p>
+                <textarea id="multi-search-textarea" rows="8" placeholder="예시:&#10;SKU001, SKU002&#10;SKU003&#10;8801234567890"></textarea>
+                <p class="modal-hint">※ 사이드바 단일 검색창의 값과 결합하여 OR 조건으로 필터링됩니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" id="multi-search-reset-btn"><i class="fas fa-eraser"></i> 초기화</button>
+                <button class="btn-primary" id="multi-search-apply-btn"><i class="fas fa-check"></i> 적용</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 카메라 스캔 모달 -->
+    <div id="camera-scan-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content modal-camera">
+            <div class="modal-header"><h3><i class="fas fa-camera"></i> 카메라 바코드 스캔</h3><button class="modal-close-btn" id="camera-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
+            <div class="modal-body camera-body">
+                <p class="modal-desc">카메라를 바코드에 맞춰주세요. 자동으로 인식됩니다.</p>
+                <div id="camera-reader"></div>
+                <div class="camera-result" id="camera-result" style="display:none;"><i class="fas fa-check-circle"></i><span id="camera-result-text"></span></div>
+            </div>
+            <div class="modal-footer"><button class="btn-outline" id="camera-scan-stop-btn"><i class="fas fa-stop"></i> 스캔 종료</button></div>
+        </div>
+    </div>
+
+    <!-- 이전 작업 복원 모달 -->
+    <div id="restore-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content modal-restore">
+            <div class="modal-header"><h3><i class="fas fa-clock-rotate-left"></i> 이전 작업 복구</h3><button class="modal-close-btn" id="restore-close-btn"><i class="fas fa-xmark"></i></button></div>
+            <div class="modal-body">
+                <div class="restore-info"><i class="fas fa-database restore-icon"></i><div class="restore-details"><p class="restore-title">이전 작업 내역이 발견되었습니다!</p><p class="restore-meta" id="restore-meta"></p></div></div>
+                <p class="modal-desc">이전에 저장된 재고 비교 데이터를 불러오시겠습니까?<br>불러오면 대시보드 화면으로 바로 이동합니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" id="restore-discard-btn"><i class="fas fa-trash"></i> 삭제하고 새로 시작</button>
+                <button class="btn-primary" id="restore-load-btn"><i class="fas fa-download"></i> 불러오기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 복수 위치 선택 모달 -->
+    <div id="dup-scan-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header"><h3><i class="fas fa-map-location-dot"></i> 위치 선택</h3><button class="modal-close-btn" id="dup-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
+            <div class="modal-body">
+                <p class="modal-desc" id="dup-scan-desc">동일 상품이 여러 위치에 존재합니다.</p>
+                <div id="dup-scan-list" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer"><button class="btn-outline" id="dup-scan-cancel-btn"><i class="fas fa-xmark"></i> 취소</button></div>
+        </div>
+    </div>
+
+    <!-- 첫 로그인 이름 설정 오버레이 -->
+    <div id="name-setup-overlay" class="login-overlay" style="display:none;">
+        <div class="login-modal">
+            <div class="login-header">
+                <div class="login-logo" style="background:linear-gradient(135deg,#10B981,#059669);">
+                    <i class="fas fa-user-pen"></i>
+                </div>
+                <h2>이름을 설정해 주세요</h2>
+                <p class="login-subtitle">앱에서 표시될 이름입니다</p>
+            </div>
+            <form id="name-setup-form" class="login-form" novalidate>
+                <div class="login-field">
+                    <i class="fas fa-user login-field-icon"></i>
+                    <input type="text" id="name-setup-input" placeholder="예: 홍길동" maxlength="20" required autocomplete="name">
+                </div>
+                <p id="name-setup-error" class="login-error" style="display:none;"></p>
+                <button type="submit" id="name-setup-submit-btn" class="btn-primary btn-block login-submit">
+                    <i class="fas fa-check"></i> 시작하기
+                </button>
+            </form>
+            <p class="login-footer">이후 관리자에게 역할(권한)을 요청하세요.</p>
+        </div>
+    </div>
+
+    <!-- 로그인 오버레이 -->
+    <div id="login-overlay" class="login-overlay" style="display:none;">
+        <div class="login-modal">
+            <div class="login-header">
+                <div class="login-logo"><i class="fas fa-boxes-stacked"></i></div>
+                <h2>재고 비교 대시보드</h2>
+                <p class="login-subtitle">Inventory Comparison Dashboard</p>
+            </div>
+            <form id="login-form" class="login-form" novalidate>
+                <div class="login-field">
+                    <i class="fas fa-envelope login-field-icon"></i>
+                    <input type="email" id="login-email" placeholder="이메일 주소" required autocomplete="email" inputmode="email">
+                </div>
+                <div class="login-field">
+                    <i class="fas fa-lock login-field-icon"></i>
+                    <input type="password" id="login-password" placeholder="비밀번호" required autocomplete="current-password">
+                </div>
+                <p id="login-error" class="login-error" style="display:none;"></p>
+                <button type="submit" id="login-submit-btn" class="btn-primary btn-block login-submit">
+                    <i class="fas fa-right-to-bracket"></i> 로그인
+                </button>
+            </form>
+            <p class="login-footer">계정이 없으신가요? 관리자에게 문의하세요.</p>
+        </div>
+    </div>
+
+    <!-- 사용자 관리 모달 (Admin 전용) -->
+    <div id="user-manage-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content modal-user-manage">
+            <div class="modal-header">
+                <h3><i class="fas fa-users-gear"></i> 사용자 관리</h3>
+                <button class="modal-close-btn" id="user-manage-close-btn"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">
+                    역할을 변경합니다. 계정 생성/삭제는 Firebase Console에서 수행하고,<br>
+                    이 화면에서 역할(작업자 / 팀장 / 관리자)을 지정하세요.
+                </p>
+                <div id="user-manage-list" class="user-manage-list"></div>
+            </div>
+            <!-- inline onclick 제거 → app.js 이벤트 위임 -->
+            <div class="modal-footer">
+                <button class="btn-outline" id="user-manage-refresh-btn">
+                    <i class="fas fa-rotate"></i> 새로고침
+                </button>
+                <button class="btn-primary" id="user-manage-done-btn">
+                    <i class="fas fa-check"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 컨테이너 + 로딩 오버레이 -->
+    <div id="toast-container"></div>
+    <div id="loading-overlay" style="display:none;">
+        <div class="spinner-wrap"><div class="spinner"></div><p>비교 분석 중...</p></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- 스크립트 로드 순서 (의존성 순서 보장, defer 사용)    -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <script src="js/constants.js" defer></script>
+    <script src="js/utils.js" defer></script>
+    <script src="js/state.js" defer></script>
+    <script src="js/firebase-sync.js" defer></script>
+    <script src="js/comparison.js" defer></script>
+    <script src="js/file-manager.js" defer></script>
+    <script src="js/dashboard-ui.js" defer></script>
+    <script src="js/table-renderer.js" defer></script>
+    <script src="js/export.js" defer></script>
+    <script src="js/scanner.js" defer></script>
+    <script src="js/presence.js" defer></script>
+    <!-- auth.js: app.js보다 먼저 로드 (initFirebaseAuth 정의 선행 필요) -->
+    <script src="js/auth.js" defer></script>
+    <script src="js/app.js" defer></script>
+</body>
+</html>

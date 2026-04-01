@@ -1,0 +1,15 @@
+# 민감 정보
+API_KEYS.md
+*.env
+.env*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
