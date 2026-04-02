@@ -4360,6 +4360,71 @@ body.role-worker #sb-btn-drive-upload { display: none !important; }
     letter-spacing: 0.02em;
 }
 
+/* ── 헤더 팀장/작업자 액션 버튼 (btn-session-switch 동일 스타일) ── */
+.btn-header-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface, #fff);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.btn-header-action i {
+    font-size: 0.85rem;
+}
+/* 드라이브 제출 — 파란 강조 */
+.btn-header-action.btn-header-drive:hover {
+    border-color: #0EA5E9;
+    color: #0EA5E9;
+    background: #F0F9FF;
+}
+/* CSV / Excel — 초록 강조 */
+.btn-header-action.btn-header-csv:hover,
+.btn-header-action.btn-header-excel:hover {
+    border-color: #16A34A;
+    color: #16A34A;
+    background: #F0FFF4;
+}
+/* 아이콘 색상 미리 표시 (기본 상태에서도 살짝) */
+.btn-header-action.btn-header-drive i { color: #0EA5E9; }
+.btn-header-action.btn-header-csv  i { color: #16A34A; }
+.btn-header-action.btn-header-excel i { color: #16A34A; }
+
+/* 다크모드 */
+[data-theme="dark"] .btn-header-action {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+[data-theme="dark"] .btn-header-action.btn-header-drive:hover {
+    background: rgba(14, 165, 233, 0.1);
+    border-color: #38BDF8;
+    color: #38BDF8;
+}
+[data-theme="dark"] .btn-header-action.btn-header-csv:hover,
+[data-theme="dark"] .btn-header-action.btn-header-excel:hover {
+    background: rgba(22, 163, 74, 0.1);
+    border-color: #4ADE80;
+    color: #4ADE80;
+}
+[data-theme="dark"] .btn-header-action.btn-header-drive i { color: #38BDF8; }
+[data-theme="dark"] .btn-header-action.btn-header-csv  i { color: #4ADE80; }
+[data-theme="dark"] .btn-header-action.btn-header-excel i { color: #4ADE80; }
+
+/* 모바일 */
+@media (max-width: 768px) {
+    .btn-header-action { padding: 6px 10px; }
+    .btn-header-action .desktop-only { display: none; }
+}
+
 /* 세션 전환 버튼 (헤더) */
 .btn-session-switch {
     display: inline-flex;
