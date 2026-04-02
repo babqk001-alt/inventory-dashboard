@@ -113,6 +113,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tab-overview').addEventListener('click',    () => switchView('overview'));
     document.getElementById('tab-livecount').addEventListener('click',   () => switchView('livecount'));
     document.getElementById('tab-adjustment').addEventListener('click',  () => switchView('adjustment'));
+    const tabScoreboard = document.getElementById('tab-scoreboard');
+    if (tabScoreboard) tabScoreboard.addEventListener('click', () => switchView('scoreboard'));
+
+    // ── 세션 전환 (작업자용) ──────────────────────────────
+    const sessionSwitchBtn = document.getElementById('session-switch-btn');
+    if (sessionSwitchBtn) {
+        sessionSwitchBtn.addEventListener('click', () => {
+            if (typeof showSessionSwitchModal === 'function') showSessionSwitchModal();
+        });
+    }
+    const sessionSwitchCloseBtn = document.getElementById('session-switch-close-btn');
+    if (sessionSwitchCloseBtn) {
+        sessionSwitchCloseBtn.addEventListener('click', () => {
+            const modal = document.getElementById('session-switch-modal');
+            if (modal) modal.style.display = 'none';
+        });
+    }
+    const syncRetryBtn = document.getElementById('sync-retry-btn');
+    if (syncRetryBtn) {
+        syncRetryBtn.addEventListener('click', () => {
+            if (typeof autoSessionFlow === 'function') autoSessionFlow();
+        });
+    }
+    const syncSkipBtn = document.getElementById('sync-skip-btn');
+    if (syncSkipBtn) {
+        syncSkipBtn.addEventListener('click', () => {
+            if (typeof hideSyncOverlay === 'function') hideSyncOverlay();
+        });
+    }
 
     // ══════════════════════════════════════════════════════
     // 재실사 · 재고조정 뷰 이벤트
@@ -508,6 +537,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     });
+
+    // ══════════════════════════════════════════════════════
+    // 도구 드롭다운 토글
+    // ══════════════════════════════════════════════════════
+    const toolsBtn  = document.getElementById('tools-dropdown-btn');
+    const toolsMenu = document.getElementById('tools-dropdown-menu');
+    if (toolsBtn && toolsMenu) {
+        toolsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toolsMenu.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#header-tools-dropdown')) {
+                toolsMenu.classList.remove('open');
+            }
+        });
+    }
 
     // ══════════════════════════════════════════════════════
     // Web Audio API: 첫 사용자 상호작용에서 AudioContext 초기화

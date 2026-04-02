@@ -645,20 +645,29 @@ function renderAdjZoneSummary(targets) {
         const s = zoneMap[z];
         const diffClass = s.diffQty > 0 ? 'plus' : s.diffQty < 0 ? 'minus' : '';
         const rcPct = s.total > 0 ? Math.round(s.rcDone / s.total * 100) : 0;
-        return `<div class="adj-zone-chip">
+        // 칩 상태 클래스: 완료 > 증가/감소
+        const chipMod = rcPct >= 100 ? 'adj-zone-chip--done'
+            : s.diffQty > 0 ? 'adj-zone-chip--plus'
+            : s.diffQty < 0 ? 'adj-zone-chip--minus' : '';
+        return `<div class="adj-zone-chip ${chipMod}">
             <div class="adj-zone-chip-top">
                 <span class="adj-zone-chip-name">${esc(z)}</span>
                 <span class="adj-zone-chip-cnt">${s.total}건</span>
             </div>
             <div class="adj-zone-chip-qty">
-                EMP ${formatNum(s.empQty)} · 실사 ${formatNum(s.physQty)} · <span class="${diffClass}">차이 ${s.diffQty > 0 ? '+' : ''}${formatNum(s.diffQty)}</span>
+                <span class="qty-label">EMP <strong>${formatNum(s.empQty)}</strong></span>
+                <span class="qty-label">실사 <strong>${formatNum(s.physQty)}</strong></span>
+                <span class="${diffClass}">차이 ${s.diffQty > 0 ? '+' : ''}${formatNum(s.diffQty)}</span>
             </div>
             <div class="adj-zone-chip-bottom">
                 <div class="adj-zone-chip-stats">
-                    <span class="plus">+${s.plus}</span>
-                    <span class="minus">-${s.minus}</span>
+                    <span class="stat-badge plus"><i class="fas fa-arrow-up"></i> ${s.plus}</span>
+                    <span class="stat-badge minus"><i class="fas fa-arrow-down"></i> ${s.minus}</span>
                 </div>
-                <span class="adj-zone-chip-rc ${rcPct >= 100 ? 'done' : ''}">${s.rcDone}/${s.total} (${rcPct}%)</span>
+                <div class="adj-zone-chip-rc-wrap">
+                    <span class="adj-zone-chip-rc ${rcPct >= 100 ? 'done' : ''}">${s.rcDone}/${s.total} (${rcPct}%)</span>
+                    <div class="adj-zone-chip-progress"><div class="adj-zone-chip-progress-bar" style="width:${rcPct}%"></div></div>
+                </div>
             </div>
         </div>`;
     }).join('');

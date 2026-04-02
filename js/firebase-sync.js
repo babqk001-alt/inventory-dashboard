@@ -75,9 +75,10 @@ function initFirebase() {
                 toast(ERROR_MESSAGES.FB_WRITE_FAIL, 'error');
             });
 
-        // URL 파라미터에 세션 ID가 있으면 자동 참가
+        // URL 파라미터에 세션 ID가 있으면 자동 참가 (worker는 session-discovery에서 처리)
         const urlSession = new URLSearchParams(window.location.search).get('session');
-        if (urlSession) joinSession(urlSession, false);
+        const isWorker = AppState.currentUser?.role === 'worker';
+        if (urlSession && !isWorker) joinSession(urlSession, false);
 
         console.log('[FB] 초기화 완료');
     } catch (e) {
@@ -107,12 +108,19 @@ function createFirebaseSession() {
 
     _setSessionUrl(FirebaseSync.sessionId);
 
-    FirebaseSync.db.ref(DB_PATH.meta(FirebaseSync.sessionId)).set({
+    // 세션 메타 (데이터 소스 정보 포함 — worker 자동 접속용)
+    const sessionMeta = {
         createdAt: Date.now(),
         createdBy: AppState.assigneeName || '알 수 없음',
         totalRows: AppState.comparisonResult.length,
-    }).then(() => console.log('[FB] ✅ 세션 메타 등록'))
-      .catch(e => console.error('[FB] ❌ 세션 메타 실패:', e.message));
+        dataSource: {
+            empUrl: typeof GSHEET_CSV_URL !== 'undefined' ? GSHEET_CSV_URL : null,
+            mode: AppState.isEmpOnly ? 'emp_only' : 'emp_physical',
+        },
+    };
+    FirebaseSync.db.ref(DB_PATH.meta(FirebaseSync.sessionId)).set(sessionMeta)
+        .then(() => console.log('[FB] ✅ 세션 메타 등록'))
+        .catch(e => console.error('[FB] ❌ 세션 메타 실패:', e.message));
 
     _startListeners();
     updateFirebaseSyncUI();

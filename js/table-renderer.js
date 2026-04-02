@@ -41,22 +41,15 @@ function renderMainTable() {
     const startIdx = (AppState.currentPage - 1) * pageSize;
     const pageData = data.slice(startIdx, startIdx + pageSize);
 
-    // 정렬 가능 헤더 렌더링
+    // 정렬 가능 헤더 렌더링 (5컬럼 그룹)
     const thead = document.getElementById('main-table-head');
     if (thead) {
         const sortCols = [
-            { key: null,            label: '#'         },
-            { key: 'sku',           label: 'SKU'       },
-            { key: 'barcode',       label: '바코드'     },
-            { key: 'name',          label: '상품명'     },
-            { key: 'location',      label: '위치'       },
-            { key: 'warehouseZone', label: '구역'       },
-            { key: 'empQty',        label: 'EMP 수량'   },
-            { key: null,            label: '실사 수량'  },
-            { key: 'difference',    label: '차이'       },
-            { key: 'status',        label: '상태'       },
-            { key: null,            label: '조정 사유'  },
-            { key: null,            label: '메모'       },
+            { key: null,       label: '#' },
+            { key: 'sku',      label: '상품 정보' },
+            { key: 'barcode',  label: '바코드 · 위치' },
+            { key: 'empQty',   label: '수량' },
+            { key: 'status',   label: '상태 · 완료' },
         ];
         let thHtml = '<tr>';
         sortCols.forEach(c => {
@@ -77,7 +70,7 @@ function renderMainTable() {
     if (!tbody) return;
 
     if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9CA3AF;">데이터가 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9CA3AF;">데이터가 없습니다.</td></tr>';
     } else {
         let html = '';
         pageData.forEach((r, i) => {
@@ -89,15 +82,24 @@ function renderMainTable() {
 
             html += `<tr class="${rowClass}${doneClass}" data-row-id="${rowId}" id="row-${rowId}">`;
             html += `<td data-label="#">${startIdx + i + 1}</td>`;
-            html += `<td data-label="SKU">${esc(r.sku)}</td>`;
-            html += `<td data-label="바코드">${esc(r.barcode)}</td>`;
-            html += `<td data-label="상품명">${esc(r.name)}</td>`;
-            html += `<td data-label="위치">${esc(r.location)}</td>`;
-            html += `<td data-label="구역">${esc(r.warehouseZone)}</td>`;
-            html += `<td data-label="EMP수량">${formatNum(r.empQty)}</td>`;
 
-            // 실사 수량 셀
-            html += `<td data-label="실사수량"><div class="live-qty-cell">`;
+            // ── 상품 정보 (SKU + 이름) ──
+            html += `<td data-label="상품 정보" class="cell-product-info">`;
+            html += `<div class="product-sku">${esc(r.sku)}</div>`;
+            html += `<div class="product-name">${esc(r.name)}</div>`;
+            html += `</td>`;
+
+            // ── 바코드 · 위치 (별도 컬럼) ──
+            html += `<td data-label="바코드·위치" class="cell-barcode-loc">`;
+            if (r.barcode) html += `<div class="bl-barcode"><i class="fas fa-barcode"></i> ${esc(r.barcode)}</div>`;
+            html += `<div class="bl-location"><i class="fas fa-map-marker-alt"></i> ${esc(r.location)}`;
+            if (r.warehouseZone) html += ` <span class="bl-zone">${esc(r.warehouseZone)}</span>`;
+            html += `</div></td>`;
+
+            // ── 수량 (그룹) ──
+            html += `<td data-label="수량" class="cell-qty-action">`;
+            html += `<div class="qty-emp-label">EMP <strong>${formatNum(r.empQty)}</strong></div>`;
+            html += `<div class="live-qty-cell">`;
             if (!isDone) {
                 html += `<button type="button" class="qty-btn qty-minus" data-row-id="${rowId}" title="−1">−</button>`;
                 html += `<input type="number" class="live-qty-input" data-row-id="${rowId}" value="${r.physicalQty}" min="0" step="1">`;
@@ -106,21 +108,21 @@ function renderMainTable() {
                 html += `<span class="done-qty">${formatNum(r.physicalQty)}</span>`;
             }
             html += `<button type="button" class="qty-btn qty-done${isDone ? ' is-done' : ''}" data-row-id="${rowId}" title="${isDone ? '완료 취소' : '완료'}">✓</button>`;
-            html += `</div></td>`;
+            html += `</div>`;
+            html += `<div class="qty-diff ${getDiffClass(r.difference)}" data-diff-cell="${rowId}">${r.difference > 0 ? '+' : ''}${formatNum(r.difference)}</div>`;
+            html += `</td>`;
 
-            html += `<td data-label="차이" class="${getDiffClass(r.difference)}" data-diff-cell="${rowId}">${r.difference > 0 ? '+' : ''}${formatNum(r.difference)}</td>`;
-            html += `<td data-label="상태" data-status-cell="${rowId}">${statusBadge(r.status)}</td>`;
-
-            // 조정 사유 select
-            html += `<td data-label="사유"><select class="reason-select" data-row-id="${rowId}"${isDone ? ' disabled' : ''}>`;
+            // ── 상태 · 완료 (그룹) ──
+            html += `<td data-label="상태" class="cell-status-action" data-status-cell="${rowId}">`;
+            html += `<div>${statusBadge(r.status)}</div>`;
+            html += `<select class="reason-select" data-row-id="${rowId}"${isDone ? ' disabled' : ''}>`;
             REASON_OPTIONS.forEach(opt => {
                 const selected = r.reason === opt.value ? ' selected' : '';
                 html += `<option value="${esc(opt.value)}"${selected}>${esc(opt.label)}</option>`;
             });
-            html += `</select></td>`;
-
-            // 메모 input
-            html += `<td data-label="메모"><input type="text" class="memo-input" data-row-id="${rowId}" value="${esc(r.memo || '')}" placeholder="메모 입력..."${isDone ? ' disabled' : ''}></td>`;
+            html += `</select>`;
+            html += `<input type="text" class="memo-input" data-row-id="${rowId}" value="${esc(r.memo || '')}" placeholder="메모..."${isDone ? ' disabled' : ''}>`;
+            html += `</td>`;
 
             html += '</tr>';
         });
@@ -292,9 +294,12 @@ function updateRowQty(rowId, newQty) {
         diffCell.className   = getDiffClass(row.difference);
         diffCell.textContent = (row.difference > 0 ? '+' : '') + formatNum(row.difference);
     }
-    // 상태 셀 부분 업데이트
+    // 상태 셀 부분 업데이트 (cell-status-action 내 첫 div만 교체)
     const statusCell = document.querySelector(`[data-status-cell="${rowId}"]`);
-    if (statusCell) statusCell.innerHTML = statusBadge(row.status);
+    if (statusCell) {
+        const badgeDiv = statusCell.querySelector('div');
+        if (badgeDiv) badgeDiv.innerHTML = statusBadge(row.status);
+    }
     // 행 배경색 클래스 갱신
     const tr = document.getElementById(`row-${rowId}`);
     if (tr) tr.className = getRowClass(row.status);

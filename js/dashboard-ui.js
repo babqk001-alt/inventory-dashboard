@@ -462,12 +462,15 @@ function switchView(viewName) {
     const dataTableSection = document.querySelector('.data-table-section');
     const adjSection      = document.getElementById('adjustment-section');
 
+    const sbSection = document.getElementById('scoreboard-section');
+
     if (scanBar)        scanBar.style.display        = 'none';
     if (chartsSection)  chartsSection.style.display  = 'none';
     if (topDiffSection) topDiffSection.style.display = 'none';
     if (liveBadge)      liveBadge.style.display      = 'none';
     if (dataTableSection) dataTableSection.style.display = '';
     if (adjSection)     adjSection.style.display     = 'none';
+    if (sbSection)      sbSection.style.display      = 'none';
 
     if (viewName === 'overview') {
         if (chartsSection)  chartsSection.style.display  = '';
@@ -484,6 +487,10 @@ function switchView(viewName) {
         if (dataTableSection) dataTableSection.style.display = 'none';
         if (adjSection) adjSection.style.display = '';
         if (typeof renderAdjustmentView === 'function') renderAdjustmentView();
+    } else if (viewName === 'scoreboard') {
+        if (dataTableSection) dataTableSection.style.display = 'none';
+        if (sbSection) sbSection.style.display = '';
+        if (typeof renderScoreboard === 'function') renderScoreboard();
     }
 
     updateSidebarPosition();

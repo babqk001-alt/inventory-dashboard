@@ -252,9 +252,54 @@ function applyRoleBasedUI(role) {
         if (assigneeSaveBtn) assigneeSaveBtn.disabled = false;
     }
 
+    // ── 역할별 탭 표시/숨김 ──────────────────────────────────
+    const tabOverview    = document.querySelector('[data-view="overview"]');
+    const tabLivecount   = document.querySelector('[data-view="livecount"]');
+    const tabAdjustment  = document.querySelector('[data-view="adjustment"]');
+    const tabScoreboard  = document.getElementById('tab-scoreboard');
+
+    if (isAdmin) {
+        // 관리자: overview, livecount, adjustment 표시 / scoreboard 숨김
+        if (tabOverview)   tabOverview.style.display   = '';
+        if (tabLivecount)  tabLivecount.style.display  = '';
+        if (tabAdjustment) tabAdjustment.style.display = '';
+        if (tabScoreboard) tabScoreboard.style.display = 'none';
+    } else {
+        // 팀장/작업자: scoreboard, livecount만 표시
+        if (tabOverview)   tabOverview.style.display   = 'none';
+        if (tabLivecount)  tabLivecount.style.display  = '';
+        if (tabAdjustment) tabAdjustment.style.display = 'none';
+        if (tabScoreboard) tabScoreboard.style.display = '';
+        // 기본 뷰를 scoreboard로 전환
+        if (typeof switchView === 'function') switchView('scoreboard');
+    }
+
+    // ── 관리자 전용 UI 요소 숨김 (팀장/작업자) ──────────────
+    const adminOnlyIds = [
+        'header-tools-dropdown', // 도구 드롭다운
+        'new-comparison-btn',    // 새 비교 버튼
+        'btn-drive-upload',      // 드라이브 제출 버튼
+    ];
+    if (!isAdmin) {
+        adminOnlyIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        // 사이드바 담당자 배정 영역 숨김
+        const assigneePanel = document.getElementById('assignee-panel');
+        if (assigneePanel) assigneePanel.style.display = 'none';
+    } else {
+        const assigneePanel = document.getElementById('assignee-panel');
+        if (assigneePanel) assigneePanel.style.display = '';
+    }
+
     // body에 role class 추가 (CSS 레벨 제어용)
     document.body.classList.remove('role-admin', 'role-teamlead', 'role-worker');
     document.body.classList.add(`role-${role}`);
+
+    // Worker: 수동 동기화 버튼 숨기기 (세션은 로그인 시 자동 연결)
+    const firebaseSyncWrap = document.getElementById('firebase-sync-wrap');
+    if (isWorker && firebaseSyncWrap) firebaseSyncWrap.style.display = 'none';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -296,9 +341,14 @@ function showNameSetupOverlay() {
     const el = document.getElementById('name-setup-overlay');
     if (el) el.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    // 항상 버튼/입력 상태 초기화 (이전 시도 잔류 방지)
+    const submitBtn = document.getElementById('name-setup-submit-btn');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-check"></i> 시작하기'; }
+    const errorEl = document.getElementById('name-setup-error');
+    if (errorEl) errorEl.style.display = 'none';
     setTimeout(() => {
         const input = document.getElementById('name-setup-input');
-        if (input) input.focus();
+        if (input) { input.value = ''; input.focus(); }
     }, 150);
 }
 
@@ -336,10 +386,13 @@ async function handleNameSetup(e) {
         const uid = AppState.currentUser?.uid;
         if (!db || !uid) throw new Error('DB 또는 사용자 정보 없음');
 
-        await db.ref(`users/${uid}`).update({
-            displayName: name,
-            nameSet:     true,
-        });
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('저장 시간이 초과되었습니다. 네트워크를 확인하고 다시 시도해 주세요.')), 10000)
+        );
+        await Promise.race([
+            db.ref(`users/${uid}`).update({ displayName: name, nameSet: true }),
+            timeout,
+        ]);
 
         AppState.currentUser.displayName = name;
         AppState.assigneeName = name;
@@ -358,8 +411,13 @@ async function handleNameSetup(e) {
         hideNameSetupOverlay();
         updateAuthHeader();
 
-        if (typeof toast === 'function') toast(`안녕하세요, ${name}님! 🎉`, 'success');
+        if (typeof toast === 'function') toast(`안녕하세요, ${name}님!`, 'success');
         console.log('[Auth] 이름 설정 완료:', name);
+
+        // 첫 로그인 worker → 자동 세션 플로우 시작
+        if (AppState.currentUser?.role === 'worker' && typeof autoSessionFlow === 'function') {
+            autoSessionFlow();
+        }
 
     } catch (err) {
         if (errorEl) { errorEl.textContent = '저장 실패: ' + err.message; errorEl.style.display = 'block'; }
@@ -578,13 +636,17 @@ function initFirebaseAuth() {
             }
 
             // [7] Firebase DB 초기화 (CRITICAL 1: 반드시 여기서)
-            //     내부에서 joinSession(urlSession) 도 호출됨
+            //     내부에서 joinSession(urlSession) 도 호출됨 (단, worker는 건너뜀)
             if (typeof initFirebase === 'function') initFirebase();
 
-            // [8] URL 세션 파라미터가 있으면 presence 등록
-            const urlSession = new URLSearchParams(window.location.search).get('session');
-            if (urlSession) {
-                setupPresence(urlSession);
+            // [8] Worker: 자동 세션 검색 플로우 / Admin·Teamlead: 기존 URL 세션 로직
+            if (profile.role === 'worker' && profile.nameSet && typeof autoSessionFlow === 'function') {
+                await autoSessionFlow();
+            } else if (profile.role !== 'worker') {
+                const urlSession = new URLSearchParams(window.location.search).get('session');
+                if (urlSession) {
+                    setupPresence(urlSession);
+                }
             }
 
         } else {

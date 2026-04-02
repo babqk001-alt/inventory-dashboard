@@ -42,7 +42,7 @@ const _rawState = {
     autoSaveTimer: null,     // debounce 타이머 핸들
 
     // ── 뷰 상태 ───────────────────────────────────────────
-    currentView: 'overview', // 'overview' | 'livecount' | 'adjustment'
+    currentView: 'overview', // 'overview' | 'livecount' | 'adjustment' | 'scoreboard'
     isEmpOnly:   false,      // true = 실사 파일 없이 EMP 데이터만 사용
 
     // ── 담당자 / 구역 ──────────────────────────────────────
@@ -73,6 +73,10 @@ const _rawState = {
 
     // ── Firebase 실시간 ───────────────────────────────────
     remoteProgress: {},      // { zone: { scanned, total, updatedBy } }
+
+    // ── 전광판 (Scoreboard) ──────────────────────────────
+    floorPlans:     {},      // { S206: [...rows], S202: [...], S204: [...], B204: [...] }
+    recentActivity: [],      // [{ user, zone, action, timestamp }, ...]
 
     // ── EMP 수량 0 표시 옵션 ─────────────────────────────
     _showAllEmpZero: false,
@@ -244,6 +248,8 @@ function resetState() {
     AppState.adjSkuGrouped    = false;
     AppState.recountData      = {};
     AppState.remoteProgress   = {};
+    AppState.floorPlans       = {};
+    AppState.recentActivity   = [];
     AppState._showAllEmpZero  = false;
 
     // Set 리셋 (Proxy 외부 mutate 후 수동 통지)
