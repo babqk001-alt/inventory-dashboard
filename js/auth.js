@@ -289,6 +289,11 @@ function applyRoleBasedUI(role) {
         const assigneePanel = document.getElementById('assignee-panel');
         if (assigneePanel) assigneePanel.style.display = 'none';
     } else {
+        // admin: 이전 세션에서 숨겨진 인라인 스타일 복원
+        adminOnlyIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = '';
+        });
         const assigneePanel = document.getElementById('assignee-panel');
         if (assigneePanel) assigneePanel.style.display = '';
     }
