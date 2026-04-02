@@ -331,6 +331,7 @@ function applyRoleBasedUI(role) {
 /**
  * 세션에 접속 중인 사용자를 /sessions/{id}/presence/{uid}에 기록.
  * .info/connected 리스너로 연결 끊기면 onDisconnect()로 자동 삭제.
+ * 세션 전환 시 중복 리스너 누적을 막기 위해 기존 .info/connected 리스너를 먼저 해제.
  * @param {string} sessionId
  */
 function setupPresence(sessionId) {
@@ -341,6 +342,8 @@ function setupPresence(sessionId) {
     const uid         = AppState.currentUser.uid;
     const presenceRef = db.ref(`sessions/${sessionId}/presence/${uid}`);
 
+    // 기존 .info/connected 리스너 해제 후 재등록 (세션 전환 시 누적 방지)
+    db.ref('.info/connected').off('value');
     db.ref('.info/connected').on('value', snap => {
         if (!snap.val()) return;
         presenceRef.onDisconnect().remove();

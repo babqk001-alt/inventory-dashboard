@@ -151,6 +151,16 @@ function joinSession(sessionId, showToast = true) {
  */
 function leaveSession() {
     if (!FirebaseSync.sessionId) return;
+
+    // ── presence 제거: 이전 세션에 "접속 중" 표시가 남지 않도록 즉시 삭제 ──
+    const oldSessionId = FirebaseSync.sessionId;
+    const uid = AppState.currentUser?.uid;
+    if (uid && FirebaseSync.db) {
+        const presenceRef = FirebaseSync.db.ref(`sessions/${oldSessionId}/presence/${uid}`);
+        presenceRef.onDisconnect().cancel();
+        presenceRef.remove().catch(() => {});
+    }
+
     _stopListeners();
 
     // 내가 잠근 행 모두 해제
