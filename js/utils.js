@@ -31,11 +31,31 @@ function show(el, displayType = 'block') {
 
 /**
  * 요소를 숨깁니다.
+ * modal-overlay 클래스가 있으면 닫기 애니메이션 후 숨깁니다.
  * @param {HTMLElement|string} el - HTMLElement 또는 요소 id
  */
 function hide(el) {
     const elem = (typeof el === 'string') ? document.getElementById(el) : el;
-    if (elem) elem.style.display = 'none';
+    if (!elem) return;
+    if (elem.classList.contains('modal-overlay')) {
+        closeModalAnimated(elem);
+    } else {
+        elem.style.display = 'none';
+    }
+}
+
+/**
+ * modal-overlay 요소에 닫기 애니메이션을 적용한 후 숨깁니다.
+ * @param {HTMLElement|string} el
+ */
+function closeModalAnimated(el) {
+    const elem = (typeof el === 'string') ? document.getElementById(el) : el;
+    if (!elem) return;
+    elem.classList.add('modal-closing');
+    setTimeout(() => {
+        elem.style.display = 'none';
+        elem.classList.remove('modal-closing');
+    }, 210);
 }
 
 /**

@@ -126,8 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionSwitchCloseBtn = document.getElementById('session-switch-close-btn');
     if (sessionSwitchCloseBtn) {
         sessionSwitchCloseBtn.addEventListener('click', () => {
-            const modal = document.getElementById('session-switch-modal');
-            if (modal) modal.style.display = 'none';
+            closeModalAnimated('session-switch-modal');
         });
     }
     const syncRetryBtn = document.getElementById('sync-retry-btn');
@@ -541,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const restoreModal = document.getElementById('restore-modal');
         if (restoreModal && restoreModal.style.display === 'flex') {
-            restoreModal.style.display = 'none';
+            closeModalAnimated(restoreModal);
             return;
         }
     });

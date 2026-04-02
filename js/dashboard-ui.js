@@ -455,41 +455,49 @@ function switchView(viewName) {
         tab.classList.toggle('active', tab.getAttribute('data-view') === viewName);
     });
 
-    const scanBar         = document.getElementById('live-scan-bar');
-    const chartsSection   = document.getElementById('charts-section');
-    const topDiffSection  = document.getElementById('top-diff-section');
-    const liveBadge       = document.getElementById('live-badge');
+    const scanBar          = document.getElementById('live-scan-bar');
+    const chartsSection    = document.getElementById('charts-section');
+    const topDiffSection   = document.getElementById('top-diff-section');
+    const liveBadge        = document.getElementById('live-badge');
     const dataTableSection = document.querySelector('.data-table-section');
-    const adjSection      = document.getElementById('adjustment-section');
+    const adjSection       = document.getElementById('adjustment-section');
+    const sbSection        = document.getElementById('scoreboard-section');
 
-    const sbSection = document.getElementById('scoreboard-section');
+    if (scanBar)           scanBar.style.display           = 'none';
+    if (chartsSection)     chartsSection.style.display     = 'none';
+    if (topDiffSection)    topDiffSection.style.display    = 'none';
+    if (liveBadge)         liveBadge.style.display         = 'none';
+    if (dataTableSection)  dataTableSection.style.display  = '';
+    if (adjSection)        adjSection.style.display        = 'none';
+    if (sbSection)         sbSection.style.display         = 'none';
 
-    if (scanBar)        scanBar.style.display        = 'none';
-    if (chartsSection)  chartsSection.style.display  = 'none';
-    if (topDiffSection) topDiffSection.style.display = 'none';
-    if (liveBadge)      liveBadge.style.display      = 'none';
-    if (dataTableSection) dataTableSection.style.display = '';
-    if (adjSection)     adjSection.style.display     = 'none';
-    if (sbSection)      sbSection.style.display      = 'none';
+    /** fade-in 헬퍼: display 설정 후 animation 재실행 */
+    function _showFade(el, displayType) {
+        if (!el) return;
+        el.style.display = displayType || '';
+        el.classList.remove('view-fade-in');
+        void el.offsetWidth; // reflow 강제
+        el.classList.add('view-fade-in');
+    }
 
     if (viewName === 'overview') {
-        if (chartsSection)  chartsSection.style.display  = '';
-        if (topDiffSection) topDiffSection.style.display = '';
+        _showFade(chartsSection);
+        _showFade(topDiffSection);
         refreshDashboard();
     } else if (viewName === 'livecount') {
-        if (scanBar)    scanBar.style.display    = 'flex';
-        if (liveBadge)  liveBadge.style.display  = 'inline-block';
+        _showFade(scanBar, 'flex');
+        if (liveBadge) liveBadge.style.display = 'inline-block';
         refreshDashboard();
         requestAnimationFrame(() => {
             document.getElementById('live-scan-input')?.focus();
         });
     } else if (viewName === 'adjustment') {
         if (dataTableSection) dataTableSection.style.display = 'none';
-        if (adjSection) adjSection.style.display = '';
+        _showFade(adjSection);
         if (typeof renderAdjustmentView === 'function') renderAdjustmentView();
     } else if (viewName === 'scoreboard') {
         if (dataTableSection) dataTableSection.style.display = 'none';
-        if (sbSection) sbSection.style.display = '';
+        _showFade(sbSection);
         if (typeof renderScoreboard === 'function') renderScoreboard();
     }
 
