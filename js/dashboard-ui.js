@@ -895,37 +895,8 @@ function updateAutoSaveIndicator(state) {
     }
 }
 
-/**
- * localStorage에 현재 상태를 직렬화하여 저장합니다.
- * state.js의 persistState()를 호출합니다.
- */
-function saveToLocalStorage() {
-    // EMP 0 + 실사 0 + 미변경 행 제외하여 용량 절약
-    const activeRows = AppState.comparisonResult.filter(r =>
-        r.empQty > 0 || r.physicalQty > 0 || r._touched || r._scanned ||
-        AppState.completedRows.has(r._rowId) ||
-        AppState.recountData[r._rowId] !== undefined ||
-        r.status === 'ONLY_IN_PHYSICAL'
-    );
-
-    try {
-        localStorage.setItem(LS_KEY, JSON.stringify({
-            timestamp:        Date.now(),
-            comparisonResult: activeRows,
-            isEmpOnly:        AppState.isEmpOnly,
-            currentView:      AppState.currentView,
-            completedRows:    [...AppState.completedRows],
-            adjApproved:      [...AppState.adjApproved],
-            recountData:      AppState.recountData,
-            assigneeName:     AppState.assigneeName,
-            workers:          AppState.workers,
-            zoneAssignees:    AppState.zoneAssignees,
-        }));
-        updateAutoSaveIndicator('saved');
-    } catch (e) {
-        console.warn('[AutoSave] localStorage 저장 실패:', e);
-    }
-}
+// saveToLocalStorage() 제거됨 — 필터링 로직이 state.js serializeState()로 통합됨
+// 실제 저장: triggerAutoSave() → persistState() → serializeState()
 
 /**
  * localStorage에서 저장된 상태를 불러옵니다.
@@ -945,7 +916,16 @@ function loadFromLocalStorage() {
 
 /** localStorage에서 불러온 데이터를 AppState에 복원합니다. */
 function restoreFromSavedData(data) {
-    AppState.comparisonResult = data.comparisonResult || [];
+    // 슬림 저장에서 제거된 파생 필드 재계산 (difference, warehouseZone 등)
+    AppState.comparisonResult = (data.comparisonResult || []).map(r => ({
+        ...r,
+        warehouseZone: r.warehouseZone || (typeof parseWarehouseZone === 'function' ? parseWarehouseZone(r.location) : ''),
+        difference:    (r.physicalQty || 0) - (r.empQty || 0),
+        reason:        r.reason   || '',
+        memo:          r.memo     || '',
+        _touched:      r._touched || false,
+        _scanned:      r._scanned || false,
+    }));
     // [C3 수정] 복원된 행 ID 최대값으로 카운터 동기화 (ID 충돌 방지)
     syncRowIdCounter(AppState.comparisonResult);
     AppState.filteredResult   = [...AppState.comparisonResult];

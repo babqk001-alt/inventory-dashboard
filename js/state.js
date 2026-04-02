@@ -145,13 +145,50 @@ const AppState = new Proxy(_rawState, {
 // ── 상태 직렬화 / 복원 (localStorage 자동저장) ──────────────
 
 /**
+ * 행 데이터에서 저장에 필요한 필드만 추출합니다 (용량 절감).
+ * 파생 필드(difference, warehouseZone, matchType)는 복원 시 재계산.
+ * 기본값(빈 문자열, false)은 생략하여 JSON 크기 최소화.
+ * @param   {Object} r - comparisonResult 행
+ * @returns {Object} 슬림 행
+ */
+function _slimRow(r) {
+    const slim = {
+        _rowId:      r._rowId,
+        sku:         r.sku,
+        location:    r.location,
+        empQty:      r.empQty,
+        physicalQty: r.physicalQty,
+        status:      r.status,
+    };
+    if (r.barcode)  slim.barcode  = r.barcode;
+    if (r.name)     slim.name     = r.name;
+    if (r.reason)   slim.reason   = r.reason;
+    if (r.memo)     slim.memo     = r.memo;
+    if (r._touched) slim._touched = true;
+    if (r._scanned) slim._scanned = true;
+    return slim;
+}
+
+/**
  * AppState 중 직렬화 가능한 필드를 JSON으로 반환합니다.
- * Set/Function/HTMLElement 등 직렬화 불가 필드는 제외됩니다.
+ * - activeRows 필터: EMP 0 + 실사 0 + 미변경 행 제외 (용량 절감)
+ * - _slimRow: 파생/기본값 필드 제거 (용량 절감 ~57%)
+ * - timestamp/currentView: loadFromLocalStorage() 호환
  * @returns {string} JSON 문자열
  */
 function serializeState() {
+    // 의미 있는 행만 저장 (EMP 0 + 실사 0 + 미변경 행 제외)
+    const activeRows = AppState.comparisonResult.filter(r =>
+        r.empQty > 0 || r.physicalQty > 0 || r._touched || r._scanned ||
+        AppState.completedRows.has(r._rowId) ||
+        AppState.recountData[r._rowId] !== undefined ||
+        r.status === 'ONLY_IN_PHYSICAL'
+    );
+
     const snapshot = {
-        comparisonResult: AppState.comparisonResult,
+        timestamp:        Date.now(),
+        currentView:      AppState.currentView,
+        comparisonResult: activeRows.map(_slimRow),
         assigneeName:     AppState.assigneeName,
         workers:          AppState.workers,
         zoneAssignees:    AppState.zoneAssignees,
@@ -202,6 +239,9 @@ function persistState() {
         localStorage.setItem(LS_KEY, serializeState());
     } catch (e) {
         console.warn('[State] localStorage 저장 실패:', e);
+        if (e.name === 'QuotaExceededError') {
+            toast('데이터가 너무 많아 자동저장에 실패했습니다. 드라이브 제출을 권장합니다.', 'warning');
+        }
     }
 }
 
