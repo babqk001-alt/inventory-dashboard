@@ -332,8 +332,10 @@ async function _autoRunComparison() {
         // EMP-only 모드로 비교 실행
         AppState.physicalRawData = null;
         if (typeof runComparison === 'function') {
-            runComparison(mappings);
-            console.log(`[SessionDiscovery] 비교 분석 완료: ${AppState.comparisonResult?.length || 0}행`);
+            const result = runComparison(mappings);
+            AppState.comparisonResult = result || [];
+            AppState.filteredResult   = [...AppState.comparisonResult];
+            console.log(`[SessionDiscovery] 비교 분석 완료: ${AppState.comparisonResult.length}행`);
         }
     } catch (e) {
         console.error('[SessionDiscovery] 자동 비교 분석 실패:', e);
