@@ -34,7 +34,19 @@ async function parseFile(file) {
         reader.onload = (e) => {
             try {
                 const data     = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
+                let workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
+
+                // [H8] EUC-KR 인코딩 감지: UTF-8 파싱 후 U+FFFD(깨진 문자) 다수 발견 시 재파싱
+                const isCsv = file.name.toLowerCase().endsWith('.csv');
+                if (isCsv) {
+                    const testSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const sample = XLSX.utils.sheet_to_csv(testSheet).slice(0, 500);
+                    if ((sample.match(/\ufffd/g) || []).length > 3) {
+                        console.log('[File] EUC-KR 인코딩 감지 → 재파싱');
+                        workbook = XLSX.read(data, { type: 'array', codepage: 51949 });
+                    }
+                }
+
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
                 if (jsonData.length === 0) {

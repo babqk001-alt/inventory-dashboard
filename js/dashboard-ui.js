@@ -857,7 +857,7 @@ function toggleMyZonesOnly() {
 function initTheme() {
     const saved = localStorage.getItem(THEME_KEY) || 'light';
     applyTheme(saved);
-    document.getElementById('theme-toggle-btn')?.addEventListener('click', toggleTheme);
+    // 리스너는 app.js DOMContentLoaded에서 등록 (이중 바인딩 방지)
 }
 
 function applyTheme(theme) {
@@ -946,6 +946,8 @@ function loadFromLocalStorage() {
 /** localStorage에서 불러온 데이터를 AppState에 복원합니다. */
 function restoreFromSavedData(data) {
     AppState.comparisonResult = data.comparisonResult || [];
+    // [C3 수정] 복원된 행 ID 최대값으로 카운터 동기화 (ID 충돌 방지)
+    syncRowIdCounter(AppState.comparisonResult);
     AppState.filteredResult   = [...AppState.comparisonResult];
     AppState.isEmpOnly        = data.isEmpOnly  ?? false;
     AppState.recountData      = data.recountData || {};

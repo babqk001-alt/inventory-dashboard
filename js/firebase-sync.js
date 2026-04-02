@@ -18,6 +18,33 @@
    [CRITICAL 1] initFirebase()는 반드시 로그인 성공 후에만 호출하세요.
                 auth.js의 bridgeAuthToLegacy() 안에서 호출됩니다.
    [CRITICAL 2] updatedBy / by 필드는 하위 호환을 위해 절대 제거하지 마세요.
+
+   [C5] Firebase Security Rules 권장 설정 (Firebase Console에서 적용 필요):
+   ─────────────────────────────────────────────────────────────────
+   {
+     "rules": {
+       "sessions": {
+         "$sessionId": {
+           ".read": "auth != null",
+           "meta":     { ".write": "auth != null" },
+           "rows":     { ".write": "auth != null" },
+           "locks":    { ".write": "auth != null" },
+           "done":     { ".write": "auth != null" },
+           "presence": {
+             "$uid": { ".write": "auth != null && auth.uid === $uid" }
+           }
+         }
+       },
+       "users": {
+         "$uid": {
+           ".read":  "auth != null",
+           ".write": "auth != null && (auth.uid === $uid || root.child('users/' + auth.uid + '/role').val() === 'admin')"
+         }
+       },
+       "_ping": { ".write": "auth != null" }
+     }
+   }
+   ─────────────────────────────────────────────────────────────────
    ═══════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -30,9 +57,10 @@ const FirebaseSync = {
     sessionId:       null,
     listeners:       [],          // 해제할 리스너 함수 목록
     enabled:         false,
-    lockedRows:      {},          // { fbKey: workerName }
+    lockedRows:      {},          // { fbKey: workerName | { name, ts } }
     myLockedRowId:   null,        // 내가 현재 잠근 행의 _rowId
     remoteCompleted: {},          // { fbKey: { done, by, at } }
+    _processingPaused: false,     // [C7] 비교 분석 중 원격 수신 일시 정지
     // 이름 미설정 시 세션 간 일관성 유지용 기기 고유 ID
     _deviceId: 'dev_' + Math.random().toString(36).slice(2, 8),
 };
@@ -76,9 +104,21 @@ function initFirebase() {
             });
 
         // URL 파라미터에 세션 ID가 있으면 자동 참가 (worker는 session-discovery에서 처리)
+        // [H9 수정] 세션 존재 여부를 Firebase에서 확인 후 조인
         const urlSession = new URLSearchParams(window.location.search).get('session');
         const isWorker = AppState.currentUser?.role === 'worker';
-        if (urlSession && !isWorker) joinSession(urlSession, false);
+        if (urlSession && !isWorker) {
+            FirebaseSync.db.ref(`sessions/${urlSession}/meta`).once('value').then(snap => {
+                if (snap.exists()) {
+                    joinSession(urlSession, false);
+                } else {
+                    toast('유효하지 않은 세션 URL입니다.', 'warning');
+                    const url = new URL(window.location);
+                    url.searchParams.delete('session');
+                    window.history.replaceState({}, '', url);
+                }
+            }).catch(() => joinSession(urlSession, false));  // 네트워크 오류 시 기존 동작 유지
+        }
 
         console.log('[FB] 초기화 완료');
     } catch (e) {
@@ -236,6 +276,8 @@ function _stopListeners() {
  * echo 방지(2초 이내 내가 push한 데이터) 및 편집 중인 행 무시 처리 포함.
  */
 function _applyRemoteRow(fbKey, data) {
+    // [C7] 비교 분석 중에는 원격 변경 수신을 건너뜁니다
+    if (FirebaseSync._processingPaused) return;
     if (!data) return;
 
     const row = findRowByFirebaseKey(fbKey);
@@ -373,7 +415,14 @@ function debouncedPushToFirebase() { /* no-op */ }
  */
 function getFirebaseKey(row) {
     const raw = `${row.sku || ''}_${row.location || ''}_${row.warehouseZone || ''}`;
-    return raw.replace(/[.#$\/\[\]\s]/g, '_').slice(0, 100) || row._rowId;
+    const cleaned = raw.replace(/[.#$\/\[\]\s]/g, '_');
+    // [C2 수정] 100자 이하면 그대로, 초과 시 djb2 해시 접미사로 고유성 보장
+    if (cleaned.length <= 100) return cleaned || row._rowId;
+    let hash = 5381;
+    for (let i = 0; i < cleaned.length; i++) {
+        hash = ((hash << 5) + hash + cleaned.charCodeAt(i)) >>> 0;
+    }
+    return (cleaned.slice(0, 80) + '_' + hash.toString(16).padStart(8, '0')) || row._rowId;
 }
 
 /**
@@ -401,14 +450,25 @@ function findRowByFirebaseKey(fbKey) {
 function acquireLock(rowId) {
     if (!FirebaseSync.enabled || !FirebaseSync.sessionId) return true;
 
+    const LOCK_TTL = 5 * 60 * 1000;  // [C6] 5분 TTL
     const myName   = AppState.assigneeName || FirebaseSync._deviceId;
     const lockRow  = AppState.comparisonResult.find(r => r._rowId === rowId);
     const fbLockKey = lockRow ? getFirebaseKey(lockRow) : rowId;
     const currentLock = FirebaseSync.lockedRows[fbLockKey];
 
-    if (currentLock && currentLock !== myName) {
-        toast(`⚠️ ${currentLock}님이 수정 중입니다.`, 'warning');
-        return false;
+    // [C6 수정] 잠금 확인 시 TTL 적용 (오브젝트/문자열 호환)
+    if (currentLock) {
+        const lockerName = typeof currentLock === 'object' ? currentLock.name : currentLock;
+        const lockTs     = typeof currentLock === 'object' ? currentLock.ts   : 0;
+        if (lockerName && lockerName !== myName) {
+            // TTL 초과한 stale 잠금은 강제 해제
+            if (lockTs && Date.now() - lockTs > LOCK_TTL) {
+                console.log('[FB] stale lock 해제 (TTL 초과):', lockerName);
+            } else {
+                toast(`${lockerName}님이 수정 중입니다.`, 'warning');
+                return false;
+            }
+        }
     }
 
     // 다른 행에서 이 행으로 이동한 경우 이전 행 잠금 해제
@@ -418,10 +478,11 @@ function acquireLock(rowId) {
 
     FirebaseSync.myLockedRowId = rowId;
 
+    // [C6] timestamp 포함 잠금 데이터 저장
     FirebaseSync.db
         .ref(DB_PATH.lockItem(FirebaseSync.sessionId, fbLockKey))
-        .set(myName)
-        .catch(e => console.error('[FB] ❌ lock 실패:', e.message));
+        .set({ name: myName, ts: Date.now() })
+        .catch(e => console.error('[FB] lock 실패:', e.message));
 
     return true;
 }
@@ -438,7 +499,9 @@ function releaseLock(rowId) {
     const fbLockKey = lockRow ? getFirebaseKey(lockRow) : rowId;
     const currentLock = FirebaseSync.lockedRows[fbLockKey];
 
-    if (!currentLock || currentLock === myName) {
+    // [C6] 오브젝트/문자열 호환
+    const lockerName = typeof currentLock === 'object' ? currentLock?.name : currentLock;
+    if (!lockerName || lockerName === myName) {
         FirebaseSync.db
             .ref(DB_PATH.lockItem(FirebaseSync.sessionId, fbLockKey))
             .remove()
@@ -460,7 +523,9 @@ function _applyLocksToTable() {
 
         const row        = AppState.comparisonResult.find(r => r._rowId === rowId);
         const fbKey      = row ? getFirebaseKey(row) : rowId;
-        const locker     = locks[fbKey];
+        const lockVal    = locks[fbKey];
+        // [C6] 오브젝트({ name, ts }) / 문자열 호환 처리
+        const locker     = typeof lockVal === 'object' ? lockVal?.name : lockVal;
         const lockedByOther = !!(locker && locker !== myName);
 
         tr.classList.toggle('row-locked', lockedByOther);

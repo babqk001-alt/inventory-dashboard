@@ -9,6 +9,14 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ══════════════════════════════════════════════════════
+    // H10: 미처리 Promise 거부 전역 핸들러
+    // ══════════════════════════════════════════════════════
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('[Unhandled]', event.reason);
+        toast('예기치 않은 오류가 발생했습니다.', 'error');
+    });
+
+    // ══════════════════════════════════════════════════════
     // [CRITICAL 1] Auth 초기화 — DOMContentLoaded 맨 앞에서 호출
     // initFirebase()는 auth.js의 onAuthStateChanged 콜백에서만 호출됨
     // 로그인 전에는 Firebase DB sync 절대 시작하지 않음
@@ -72,6 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const mappings = getColumnMappings();
         if (!validateMappings(mappings)) return;
 
+        // H6: 중복 클릭 방지 — 비교 중 버튼 비활성화
+        const btn = document.getElementById('run-comparison-btn');
+        btn.disabled = true;
+
+        // C7: Race Condition 방지 — 비교 중 Firebase 리스너 일시 정지
+        if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = true;
+
         setLoading(true);
         setTimeout(() => {
             try {
@@ -103,6 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 toast('비교 분석 중 오류 발생: ' + err.message, 'error');
             } finally {
                 setLoading(false);
+                btn.disabled = false;  // H6: 버튼 재활성화
+                if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = false;  // C7: 리스너 재개
             }
         }, 50);
     });
@@ -250,13 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
         applyFilters();
     });
 
-    // 테이블 헤더 정렬 — 이벤트 위임 (thead가 다시 그려져도 동작)
-    document.getElementById('main-table-head').addEventListener('click', (e) => {
-        const th = e.target.closest('.sortable-th');
-        if (!th) return;
-        const key = th.getAttribute('data-sort-key');
-        if (key) toggleSort(key);
-    });
+    // 테이블 헤더 정렬: table-renderer.js initMainTableDelegation()에서 등록
+    // (이중 바인딩 방지를 위해 여기서 제거됨)
 
     // ══════════════════════════════════════════════════════
     // 페이지네이션 이벤트
@@ -295,6 +307,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 새 비교 버튼
     // ══════════════════════════════════════════════════════
     document.getElementById('new-comparison-btn').addEventListener('click', () => {
+        // H7: 기존 데이터가 있으면 확인 다이얼로그 표시
+        if (AppState.comparisonResult && AppState.comparisonResult.length > 0) {
+            if (!confirm(`현재 ${AppState.comparisonResult.length}건의 데이터가 있습니다.\n새로운 실사를 시작하면 기존 데이터가 삭제됩니다.\n\n계속하시겠습니까?`)) return;
+        }
         AppState.empRawData      = null;
         AppState.physicalRawData = null;
         AppState.empColumns      = [];

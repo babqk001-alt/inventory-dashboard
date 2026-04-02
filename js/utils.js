@@ -120,8 +120,10 @@ function safeInt(val) {
 
 /**
  * 토스트 알림을 표시합니다.
+ * [C1 수정] innerHTML → DOM API + textContent (XSS 방지)
  * @param {string} message
  * @param {'info'|'success'|'warning'|'error'} [type='info']
+ * @param {number} [duration=3000]
  */
 function toast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
@@ -136,16 +138,27 @@ function toast(message, type = 'info', duration = 3000) {
 
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML =
-        `<i class="fas ${icons[type] || icons.info} toast-icon"></i>` +
-        `<span class="toast-text">${message}</span>` +
-        `<div class="toast-progress"><div class="toast-progress-bar"></div></div>`;
 
-    // 프로그레스 바 애니메이션
-    const bar = el.querySelector('.toast-progress-bar');
-    if (bar) {
-        bar.style.animationDuration = duration + 'ms';
-    }
+    // 아이콘
+    const icon = document.createElement('i');
+    icon.className = `fas ${icons[type] || icons.info} toast-icon`;
+
+    // 메시지 (textContent로 XSS 방지)
+    const span = document.createElement('span');
+    span.className = 'toast-text';
+    span.textContent = message;
+
+    // 프로그레스 바
+    const progress = document.createElement('div');
+    progress.className = 'toast-progress';
+    const bar = document.createElement('div');
+    bar.className = 'toast-progress-bar';
+    bar.style.animationDuration = duration + 'ms';
+    progress.appendChild(bar);
+
+    el.appendChild(icon);
+    el.appendChild(span);
+    el.appendChild(progress);
 
     container.appendChild(el);
     setTimeout(() => {
@@ -218,6 +231,23 @@ let _rowIdCounter = 0;
  */
 function generateRowId() {
     return '_r' + (++_rowIdCounter);
+}
+
+/**
+ * [C3 수정] localStorage 복원 후 _rowIdCounter를 기존 최대 ID에 맞춰 동기화합니다.
+ * 복원된 행의 _rowId가 '_r15'이면 카운터를 15 이상으로 설정하여 충돌을 방지합니다.
+ * @param {Array} rows - AppState.comparisonResult 배열
+ */
+function syncRowIdCounter(rows) {
+    if (!rows || !rows.length) return;
+    let max = _rowIdCounter;
+    rows.forEach(r => {
+        if (r._rowId && typeof r._rowId === 'string') {
+            const m = r._rowId.match(/^_r(\d+)$/);
+            if (m) max = Math.max(max, parseInt(m[1], 10));
+        }
+    });
+    _rowIdCounter = max;
 }
 
 // ── 위치 파싱 ─────────────────────────────────────────────

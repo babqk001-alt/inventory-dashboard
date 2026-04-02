@@ -325,13 +325,37 @@ function applyRoleBasedUI(role) {
 }
 
 // ══════════════════════════════════════════════════════════
+// 5-1. 런타임 역할 체크 가드
+// ══════════════════════════════════════════════════════════
+
+/**
+ * [C4 수정] 민감 함수 호출 시 런타임 역할 검증.
+ * CSS display:none만으로는 콘솔 직접 호출을 막을 수 없으므로
+ * 함수 내부에서 이 가드를 사용합니다.
+ * @param   {string[]} allowedRoles - 허용 역할 배열 (예: ['admin','teamlead'])
+ * @param   {boolean}  [silent=false] - true면 toast 없이 차단
+ * @returns {boolean}  허용이면 true, 차단이면 false
+ */
+function requireRole(allowedRoles, silent = false) {
+    const role = AppState.currentUser?.role;
+    if (!role || !allowedRoles.includes(role)) {
+        if (!silent) toast('이 기능에 대한 권한이 없습니다.', 'warning');
+        return false;
+    }
+    return true;
+}
+
+// ══════════════════════════════════════════════════════════
 // 6. Presence — 세션 접속자 등록
 // ══════════════════════════════════════════════════════════
+
+// [H5] .info/connected 리스너 참조 — 전역 off('value') 대신 특정 리스너만 해제
+let _presenceConnListener = null;
 
 /**
  * 세션에 접속 중인 사용자를 /sessions/{id}/presence/{uid}에 기록.
  * .info/connected 리스너로 연결 끊기면 onDisconnect()로 자동 삭제.
- * 세션 전환 시 중복 리스너 누적을 막기 위해 기존 .info/connected 리스너를 먼저 해제.
+ * [H5 수정] 이전 presence 리스너만 정확히 제거 (firebase-sync.js의 연결 상태 리스너 보존)
  * @param {string} sessionId
  */
 function setupPresence(sessionId) {
@@ -342,9 +366,11 @@ function setupPresence(sessionId) {
     const uid         = AppState.currentUser.uid;
     const presenceRef = db.ref(`sessions/${sessionId}/presence/${uid}`);
 
-    // 기존 .info/connected 리스너 해제 후 재등록 (세션 전환 시 누적 방지)
-    db.ref('.info/connected').off('value');
-    db.ref('.info/connected').on('value', snap => {
+    // [H5 수정] 이전 presence 리스너만 해제 (전역 off 사용 금지)
+    if (_presenceConnListener) {
+        db.ref('.info/connected').off('value', _presenceConnListener);
+    }
+    _presenceConnListener = db.ref('.info/connected').on('value', snap => {
         if (!snap.val()) return;
         presenceRef.onDisconnect().remove();
         presenceRef.set({

@@ -80,6 +80,8 @@ async function exportToExcel() {
  * AppState.adjSkuGrouped 상태에 따라 위치별 / SKU 합산 모드 분기
  */
 async function exportRecountSheet() {
+    // [C4] 런타임 역할 체크 — admin/teamlead만 허용
+    if (!requireRole(['admin', 'teamlead'])) return;
     const targets = filterActiveRows(AppState.comparisonResult).filter(r =>
         r.status === 'MISMATCH' || r.status === 'ONLY_IN_EMP' || r.status === 'LOCATION_SHIFT'
     );
@@ -438,6 +440,8 @@ async function importRecountData(file) {
  * - 시트2: 상세내역(참고)
  */
 async function exportAdjustmentSheet() {
+    // [C4] 런타임 역할 체크 — admin/teamlead만 허용
+    if (!requireRole(['admin', 'teamlead'])) return;
     const targets = AppState.comparisonResult.filter(r => r.difference !== 0);
 
     if (targets.length === 0) {
@@ -1215,13 +1219,18 @@ function autoMapMergeColumns(cols) {
  * - 전송 데이터: 실사 수량이 입력된 항목(_touched/completedRows/physicalQty>0)만 포함
  */
 function uploadToDrive() {
+    // [C4] 런타임 역할 체크 — admin/teamlead만 허용
+    if (!requireRole(['admin', 'teamlead'])) return;
     if (!AppState.comparisonResult || AppState.comparisonResult.length === 0) {
         toast('전송할 데이터가 없습니다. 먼저 비교를 실행하세요.', 'warning');
         return;
     }
 
-    // 실사 작업이 실제로 이루어진 항목만 필터링
-    const workedItems = AppState.comparisonResult.filter(r => {
+    // [H3 수정] 현재 필터링된 결과(구역 필터 반영)를 기반으로 작업 항목 추출
+    const sourceData = AppState.filteredResult && AppState.filteredResult.length > 0
+        ? AppState.filteredResult
+        : AppState.comparisonResult;
+    const workedItems = sourceData.filter(r => {
         if (AppState.completedRows.has(r._rowId)) return true;
         if (r._touched) return true;
         if (r.physicalQty > 0) return true;
