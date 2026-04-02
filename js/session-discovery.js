@@ -237,6 +237,7 @@ async function selectSession(sessionId) {
 
         if (dataLoaded && AppState.comparisonResult?.length) {
             // EMP 자동 로딩 성공 → 전체 렌더링
+            if (typeof populateZoneFilter === 'function') populateZoneFilter(AppState.comparisonResult);
             if (typeof renderMainTable === 'function') renderMainTable();
             if (typeof renderKPIs === 'function') renderKPIs(AppState.comparisonResult);
             if (typeof renderZoneProgress === 'function') renderZoneProgress();
