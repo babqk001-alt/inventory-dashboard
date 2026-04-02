@@ -300,6 +300,19 @@ function applyRoleBasedUI(role) {
     // Worker: 수동 동기화 버튼 숨기기 (세션은 로그인 시 자동 연결)
     const firebaseSyncWrap = document.getElementById('firebase-sync-wrap');
     if (isWorker && firebaseSyncWrap) firebaseSyncWrap.style.display = 'none';
+
+    // ── 스코어보드 액션 바 (팀장/작업자용) ────────────────
+    const sbActionBar = document.getElementById('sb-action-bar');
+    if (sbActionBar) {
+        if (isAdmin) {
+            sbActionBar.style.display = 'none';  // admin은 헤더 도구 사용
+        } else {
+            sbActionBar.style.display = '';
+            // 드라이브 제출: teamlead만
+            const sbDriveBtn = document.getElementById('sb-btn-drive-upload');
+            if (sbDriveBtn) sbDriveBtn.style.display = (role === 'teamlead') ? '' : 'none';
+        }
+    }
 }
 
 // ══════════════════════════════════════════════════════════

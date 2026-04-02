@@ -284,6 +284,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('export-adjustment-btn').addEventListener('click', exportAdjustmentSheet);
     document.getElementById('btn-drive-upload').addEventListener('click', uploadToDrive);
 
+    // 스코어보드 액션 바 (팀장/작업자용)
+    const sbDriveBtn = document.getElementById('sb-btn-drive-upload');
+    if (sbDriveBtn) sbDriveBtn.addEventListener('click', uploadToDrive);
+    const sbCsvBtn = document.getElementById('sb-btn-csv');
+    if (sbCsvBtn) sbCsvBtn.addEventListener('click', exportToCSV);
+    const sbExcelBtn = document.getElementById('sb-btn-excel');
+    if (sbExcelBtn) sbExcelBtn.addEventListener('click', exportToExcel);
+
     // ══════════════════════════════════════════════════════
     // 새 비교 버튼
     // ══════════════════════════════════════════════════════
