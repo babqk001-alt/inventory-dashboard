@@ -3135,65 +3135,6 @@ body.role-worker #emp-refresh-btn    { display: none !important; }
 body.role-worker #new-comparison-btn { display: none !important; }
 body.role-worker #btn-drive-upload   { display: none !important; }
 
-/* ── 스코어보드 액션 바 (팀장/작업자 제출·다운로드) ── */
-.sb-action-bar {
-    display: flex;
-    gap: var(--space-3);
-    justify-content: center;
-    flex-wrap: wrap;
-    padding: var(--space-5) var(--space-4);
-    margin-top: var(--space-4);
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-}
-.btn-action-bar {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    border: none;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 160px;
-    justify-content: center;
-}
-.btn-action-bar.btn-drive {
-    background: linear-gradient(135deg, #4285F4, #1a73e8);
-    color: #fff;
-}
-.btn-action-bar.btn-csv {
-    background: linear-gradient(135deg, #34A853, #1e8e3e);
-    color: #fff;
-}
-.btn-action-bar.btn-excel {
-    background: linear-gradient(135deg, #0D9488, #0f766e);
-    color: #fff;
-}
-.btn-action-bar:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-.btn-action-bar:active {
-    transform: translateY(0);
-}
-
-@media (max-width: 768px) {
-    .sb-action-bar {
-        flex-direction: column;
-        padding: var(--space-3);
-    }
-    .sb-action-bar button {
-        width: 100%;
-        min-width: unset;
-    }
-}
-
 /* Worker: 드라이브 제출 숨김 (CSS 보호 레이어) */
 body.role-worker #sb-btn-drive-upload { display: none !important; }
 

@@ -306,17 +306,21 @@ function applyRoleBasedUI(role) {
     const firebaseSyncWrap = document.getElementById('firebase-sync-wrap');
     if (isWorker && firebaseSyncWrap) firebaseSyncWrap.style.display = 'none';
 
-    // ── 스코어보드 액션 바 (팀장/작업자용) ────────────────
-    const sbActionBar = document.getElementById('sb-action-bar');
-    if (sbActionBar) {
-        if (isAdmin) {
-            sbActionBar.style.display = 'none';  // admin은 헤더 도구 사용
-        } else {
-            sbActionBar.style.display = '';
-            // 드라이브 제출: teamlead만
-            const sbDriveBtn = document.getElementById('sb-btn-drive-upload');
-            if (sbDriveBtn) sbDriveBtn.style.display = (role === 'teamlead') ? '' : 'none';
-        }
+    // ── 헤더 팀장/작업자 액션 버튼 ────────────────────────
+    const sbDriveBtn = document.getElementById('sb-btn-drive-upload');
+    const sbCsvBtn   = document.getElementById('sb-btn-csv');
+    const sbExcelBtn = document.getElementById('sb-btn-excel');
+    if (!isAdmin) {
+        // 드라이브 제출: teamlead만
+        if (sbDriveBtn) sbDriveBtn.style.display = (role === 'teamlead') ? '' : 'none';
+        // CSV/Excel: teamlead + worker 모두
+        if (sbCsvBtn)   sbCsvBtn.style.display   = '';
+        if (sbExcelBtn) sbExcelBtn.style.display = '';
+    } else {
+        // admin: 헤더 액션 버튼 숨김 (헤더 도구 드롭다운 사용)
+        if (sbDriveBtn) sbDriveBtn.style.display = 'none';
+        if (sbCsvBtn)   sbCsvBtn.style.display   = 'none';
+        if (sbExcelBtn) sbExcelBtn.style.display = 'none';
     }
 }
 
