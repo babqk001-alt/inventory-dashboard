@@ -90,11 +90,9 @@ async function loadUserProfile(uid, _db) {
                 createdAt:   Date.now(),
             };
             await db.ref(`users/${uid}`).set(defaultProfile);
-            console.log('[Auth] 신규 프로필 생성 (이름 설정 필요):', defaultProfile.displayName);
             return defaultProfile;
         }
     } catch (e) {
-        console.warn('[Auth] loadUserProfile 실패:', e.message);
         const authUser = window.firebase ? firebase.auth().currentUser : null;
         return {
             uid,
@@ -146,8 +144,6 @@ function bridgeAuthToLegacy(user, userProfile) {
             zones:   AppState.zoneAssignees,
         }));
     } catch (_) {}
-
-    console.log('[Auth] Bridge 완료 — assigneeName:', AppState.assigneeName, '/ role:', AppState.currentUser.role);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -302,9 +298,23 @@ function applyRoleBasedUI(role) {
     document.body.classList.remove('role-admin', 'role-teamlead', 'role-worker');
     document.body.classList.add(`role-${role}`);
 
-    // Worker: 수동 동기화 버튼 숨기기 (세션은 로그인 시 자동 연결)
+    // 역할별 동기화 버튼 표시/숨김
     const firebaseSyncWrap = document.getElementById('firebase-sync-wrap');
-    if (isWorker && firebaseSyncWrap) firebaseSyncWrap.style.display = 'none';
+    if (firebaseSyncWrap) {
+        // Worker: 수동 동기화 버튼 숨기기 (세션은 로그인 시 자동 연결)
+        // Admin/Teamlead: 명시적으로 표시 복원 (역할 전환 시 display:none 잔류 방지)
+        firebaseSyncWrap.style.display = isWorker ? 'none' : 'flex';
+    }
+
+    // Worker: 세션 전환 버튼 — 활성 세션이 있으면 표시
+    const sessionSwitchBtn = document.getElementById('session-switch-btn');
+    if (sessionSwitchBtn) {
+        if (isWorker && window.FirebaseSync?.sessionId) {
+            sessionSwitchBtn.style.display = '';
+        } else if (!isWorker) {
+            sessionSwitchBtn.style.display = 'none';
+        }
+    }
 
     // ── 헤더 팀장/작업자 액션 버튼 ────────────────────────
     const sbDriveBtn = document.getElementById('sb-btn-drive-upload');
@@ -378,10 +388,8 @@ function setupPresence(sessionId) {
             name:     AppState.currentUser.displayName,
             role:     AppState.currentUser.role,
             joinedAt: Date.now(),
-        }).catch(e => console.warn('[Auth] presence 등록 실패:', e.message));
+        });
     });
-
-    console.log('[Auth] Presence 등록:', AppState.currentUser.displayName);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -463,7 +471,6 @@ async function handleNameSetup(e) {
         updateAuthHeader();
 
         if (typeof toast === 'function') toast(`안녕하세요, ${name}님!`, 'success');
-        console.log('[Auth] 이름 설정 완료:', name);
 
         // 첫 로그인 worker → 자동 세션 플로우 시작
         if (AppState.currentUser?.role === 'worker' && typeof autoSessionFlow === 'function') {
@@ -523,7 +530,10 @@ function handleLogout() {
         }
         if (typeof leaveSession === 'function') leaveSession();
     }
-    firebase.auth().signOut().catch(e => console.warn('[Auth] 로그아웃 실패:', e.message));
+    // identity 정리 (작업 데이터는 보존 — 파일 기반 데이터이므로 다음 사용자도 이어서 작업 가능)
+    AppState.currentUser = null;
+    AppState.assigneeName = '';
+    firebase.auth().signOut().catch(() => {});
     // onAuthStateChanged가 null user를 받아서 showLoginOverlay() 호출
 }
 
@@ -612,6 +622,7 @@ async function loadUserList() {
 }
 
 async function updateUserRole(uid, newRole) {
+    if (!requireRole(['admin'])) return;
     const db = (window.FirebaseSync && FirebaseSync.db) || (window.firebase && firebase.database());
     if (!db) return;
     try {
@@ -624,6 +635,7 @@ async function updateUserRole(uid, newRole) {
 }
 
 async function deleteUserFromDB(uid, displayName) {
+    if (!requireRole(['admin'])) return;
     if (!confirm(`"${displayName}" 계정을 목록에서 제거할까요?\n\n(Firebase Auth 계정은 유지됩니다. DB 레코드만 삭제됩니다.)`)) return;
     const db = (window.FirebaseSync && FirebaseSync.db) || (window.firebase && firebase.database());
     if (!db) return;
@@ -642,11 +654,12 @@ async function deleteUserFromDB(uid, displayName) {
 // ══════════════════════════════════════════════════════════
 
 function initFirebaseAuth() {
-    // Firebase SDK 없으면 기존 방식으로 폴백 (개발/테스트 환경 대비)
     if (!window.firebase) {
-        console.warn('[Auth] Firebase SDK 없음 — Auth 없이 초기화');
         if (typeof initFirebase === 'function') initFirebase();
-        return;
+        if (!window.firebase) {
+            if (typeof toast === 'function') toast('Firebase SDK 로드 실패. 페이지를 새로고침 해주세요.', 'error');
+            return;
+        }
     }
 
     // Firebase App 초기화 (constants.js의 FIREBASE_CONFIG 참조)
@@ -657,8 +670,6 @@ function initFirebaseAuth() {
     // onAuthStateChanged 리스너 등록
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
-            console.log('[Auth] ✅ 로그인 감지:', user.email);
-
             // [1] 사용자 프로필 로드 (/users/{uid})
             //     initFirebase() 호출 전이므로 직접 DB 참조 생성
             const _tempDb = firebase.database();
@@ -673,7 +684,6 @@ function initFirebaseAuth() {
             // [4] 첫 로그인 감지 — nameSet이 false면 이름 설정 화면 표시
             //     오버레이는 UI만 덮는 방식 — 뒤 초기화는 병렬 진행
             if (!profile.nameSet) {
-                console.log('[Auth] 첫 로그인 — 이름 설정 화면 표시');
                 showNameSetupOverlay();
             }
 
@@ -701,8 +711,6 @@ function initFirebaseAuth() {
             }
 
         } else {
-            // 비로그인
-            console.log('[Auth] 비로그인 — 로그인 화면 표시');
             AppState.currentUser = null;
             showLoginOverlay();
         }

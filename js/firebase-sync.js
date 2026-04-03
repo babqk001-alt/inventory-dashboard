@@ -60,6 +60,7 @@ const FirebaseSync = {
     lockedRows:      {},          // { fbKey: workerName | { name, ts } }
     myLockedRowId:   null,        // 내가 현재 잠근 행의 _rowId
     remoteCompleted: {},          // { fbKey: { done, by, at } }
+    _pendingDoneKeys: new Set(),  // in-flight done/undone fbKey 추적 (레이스 컨디션 방지)
     _processingPaused: false,     // [C7] 비교 분석 중 원격 수신 일시 정지
     // 이름 미설정 시 세션 간 일관성 유지용 기기 고유 ID
     _deviceId: 'dev_' + Math.random().toString(36).slice(2, 8),
@@ -74,7 +75,6 @@ const FirebaseSync = {
 function initFirebase() {
     try {
         if (!window.firebase) {
-            console.warn('[FB] SDK 없음 — index.html에 Firebase CDN이 있는지 확인');
             return;
         }
         if (!firebase.apps.length) {
@@ -88,7 +88,6 @@ function initFirebase() {
         // 연결 상태 표시
         FirebaseSync.db.ref('.info/connected').on('value', snap => {
             const connected = snap.val();
-            console.log('[FB] 연결 상태:', connected ? '✅ 연결됨' : '❌ 끊김');
             const indicator = document.getElementById('firebase-sync-indicator');
             if (indicator) {
                 indicator.style.background = connected ? '#22c55e' : '#ef4444';
@@ -97,9 +96,7 @@ function initFirebase() {
 
         // 쓰기 권한 테스트
         FirebaseSync.db.ref('_ping').set({ t: Date.now() })
-            .then(() => console.log('[FB] ✅ 쓰기 권한 OK'))
-            .catch(e => {
-                console.error('[FB] ❌ 쓰기 실패:', e.message);
+            .catch(() => {
                 toast(ERROR_MESSAGES.FB_WRITE_FAIL, 'error');
             });
 
@@ -120,9 +117,7 @@ function initFirebase() {
             }).catch(() => joinSession(urlSession, false));  // 네트워크 오류 시 기존 동작 유지
         }
 
-        console.log('[FB] 초기화 완료');
     } catch (e) {
-        console.error('[FB] 초기화 실패:', e);
         toast(ERROR_MESSAGES.FB_INIT_FAIL + ': ' + e.message, 'error');
     }
 }
@@ -145,6 +140,7 @@ function createFirebaseSession() {
         const stamp = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
         FirebaseSync.sessionId = `${stamp}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     }
+    localStorage.setItem('lastSessionId', FirebaseSync.sessionId);
 
     _setSessionUrl(FirebaseSync.sessionId);
 
@@ -159,8 +155,7 @@ function createFirebaseSession() {
         },
     };
     FirebaseSync.db.ref(DB_PATH.meta(FirebaseSync.sessionId)).set(sessionMeta)
-        .then(() => console.log('[FB] ✅ 세션 메타 등록'))
-        .catch(e => console.error('[FB] ❌ 세션 메타 실패:', e.message));
+        .catch(() => toast('세션 메타 등록 실패. 재시도해주세요.', 'error'));
 
     _startListeners();
     updateFirebaseSyncUI();
@@ -178,11 +173,19 @@ function createFirebaseSession() {
 function joinSession(sessionId, showToast = true) {
     if (!FirebaseSync.enabled || !sessionId) return;
     FirebaseSync.sessionId = sessionId;
+    localStorage.setItem('lastSessionId', sessionId);
     _setSessionUrl(sessionId);
     _startListeners();
     updateFirebaseSyncUI();
     const copyBtn = document.getElementById('btn-copy-session');
     if (copyBtn) copyBtn.style.display = 'flex';
+
+    // Worker: 세션 참가 시 세션 전환 버튼 표시
+    if (AppState.currentUser?.role === 'worker') {
+        const switchBtn = document.getElementById('session-switch-btn');
+        if (switchBtn) switchBtn.style.display = '';
+    }
+
     if (showToast) toast(`세션 ${sessionId} 참가 — 실시간 동기화 중`, 'success');
 }
 
@@ -218,6 +221,10 @@ function leaveSession() {
 
     const copyBtn = document.getElementById('btn-copy-session');
     if (copyBtn) copyBtn.style.display = 'none';
+
+    // Worker: 세션 전환 버튼 숨기기 (세션 종료 시)
+    const switchBtn = document.getElementById('session-switch-btn');
+    if (switchBtn) switchBtn.style.display = 'none';
 
     // 테이블/진행률 패널 재렌더 (presence.js가 제공)
     if (typeof renderMainTable === 'function')    renderMainTable();
@@ -282,7 +289,6 @@ function _applyRemoteRow(fbKey, data) {
 
     const row = findRowByFirebaseKey(fbKey);
     if (!row) {
-        console.log('[FB] row 없음 (다른 비교 세트):', fbKey);
         return;
     }
 
@@ -294,8 +300,6 @@ function _applyRemoteRow(fbKey, data) {
     // 내가 편집 중인 행이면 무시 (잠금 기준)
     const myFbKey = getFirebaseKey(row);
     if (FirebaseSync.lockedRows[myFbKey] === myName) return;
-
-    console.log('[FB] ← 원격 수신:', fbKey, 'qty:', data.physicalQty, 'by:', data.updatedBy);
 
     let changed = false;
     if (typeof data.physicalQty === 'number' && row.physicalQty !== data.physicalQty) {
@@ -344,16 +348,15 @@ function _applyRemoteRow(fbKey, data) {
 
 /** 원격 완료 상태를 로컬 completedRows에 반영합니다. */
 function _syncRemoteCompletedToLocal() {
-    const myName = AppState.assigneeName || FirebaseSync._deviceId;
     AppState.comparisonResult.forEach(r => {
         const fbKey = getFirebaseKey(r);
+        // in-flight 변경 중인 키는 로컬 상태를 신뢰 (optimistic concurrency)
+        if (FirebaseSync._pendingDoneKeys.has(fbKey)) return;
+
         if (FirebaseSync.remoteCompleted[fbKey]) {
             AppState.completedRows.add(r._rowId);
-        } else if (AppState.completedRows.has(r._rowId)) {
-            // 원격에서 완료 취소된 경우 — 내가 완료한 게 아닌 경우만 취소 반영
-            if (FirebaseSync.remoteCompleted[fbKey]?.by !== myName) {
-                AppState.completedRows.delete(r._rowId);
-            }
+        } else {
+            AppState.completedRows.delete(r._rowId);
         }
     });
     notifySubscribers('completedRows', AppState.completedRows, null);
@@ -371,7 +374,6 @@ function pushRowToFirebase(rowId) {
     if (!row) return;
 
     const fbKey = getFirebaseKey(row);
-    console.log('[FB] push →', fbKey, 'qty:', row.physicalQty);
 
     FirebaseSync.db.ref(DB_PATH.rowItem(FirebaseSync.sessionId, fbKey)).update({
         physicalQty: row.physicalQty,
@@ -387,9 +389,7 @@ function pushRowToFirebase(rowId) {
         lastUpdatedByUid:  AppState.currentUser?.uid         || null,
         lastUpdatedByName: AppState.currentUser?.displayName || null,
     })
-    .then(() => console.log('[FB] ✅ push 성공:', fbKey))
-    .catch(e => {
-        console.error('[FB] ❌ push 실패:', e.message);
+    .catch(() => {
         toast('동기화 실패 — 네트워크/권한 확인', 'error');
     });
 }
@@ -463,7 +463,7 @@ function acquireLock(rowId) {
         if (lockerName && lockerName !== myName) {
             // TTL 초과한 stale 잠금은 강제 해제
             if (lockTs && Date.now() - lockTs > LOCK_TTL) {
-                console.log('[FB] stale lock 해제 (TTL 초과):', lockerName);
+                // stale lock — TTL 초과, 강제 해제
             } else {
                 toast(`${lockerName}님이 수정 중입니다.`, 'warning');
                 return false;
@@ -481,8 +481,7 @@ function acquireLock(rowId) {
     // [C6] timestamp 포함 잠금 데이터 저장
     FirebaseSync.db
         .ref(DB_PATH.lockItem(FirebaseSync.sessionId, fbLockKey))
-        .set({ name: myName, ts: Date.now() })
-        .catch(e => console.error('[FB] lock 실패:', e.message));
+        .set({ name: myName, ts: Date.now() });
 
     return true;
 }
@@ -504,8 +503,7 @@ function releaseLock(rowId) {
     if (!lockerName || lockerName === myName) {
         FirebaseSync.db
             .ref(DB_PATH.lockItem(FirebaseSync.sessionId, fbLockKey))
-            .remove()
-            .catch(e => console.warn('[FB] unlock 실패:', e));
+            .remove();
     }
     if (FirebaseSync.myLockedRowId === rowId) {
         FirebaseSync.myLockedRowId = null;
@@ -624,6 +622,7 @@ function toggleRowDone(rowId) {
 function _pushDoneStatus(row, done) {
     if (!FirebaseSync.enabled || !FirebaseSync.sessionId) return;
     const fbKey = getFirebaseKey(row);
+    FirebaseSync._pendingDoneKeys.add(fbKey);
     if (done) {
         FirebaseSync.db.ref(DB_PATH.doneItem(FirebaseSync.sessionId, fbKey)).set({
             done: true,
@@ -633,11 +632,20 @@ function _pushDoneStatus(row, done) {
             // [Auth v1.0] 신규 필드
             uid:  AppState.currentUser?.uid         || null,
             name: AppState.currentUser?.displayName || null,
-        }).catch(e => console.warn('[FB] done push 실패:', e));
+        })
+        .then(() => FirebaseSync._pendingDoneKeys.delete(fbKey))
+        .catch(() => {
+            FirebaseSync._pendingDoneKeys.delete(fbKey);
+            toast('완료 상태 동기화 실패.', 'error');
+        });
     } else {
         FirebaseSync.db.ref(DB_PATH.doneItem(FirebaseSync.sessionId, fbKey))
             .remove()
-            .catch(e => console.warn('[FB] done remove 실패:', e));
+            .then(() => FirebaseSync._pendingDoneKeys.delete(fbKey))
+            .catch(() => {
+                FirebaseSync._pendingDoneKeys.delete(fbKey);
+                toast('완료 취소 동기화 실패.', 'error');
+            });
     }
 }
 
@@ -725,6 +733,21 @@ function handleFirebaseSyncBtn() {
         );
         action ? copySessionUrl() : leaveSession();
     } else {
+        // 오늘 날짜의 이전 세션이 있으면 복귀 선택지 제공
+        const last = localStorage.getItem('lastSessionId');
+        const d = new Date();
+        const todayPrefix = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+        if (last && last.startsWith(todayPrefix)) {
+            const choice = confirm(
+                `이전 세션(${last})이 있습니다.\n\n` +
+                `[확인] 이전 세션 복귀\n[취소] 새 세션 생성`
+            );
+            if (choice) {
+                joinSession(last);
+                if (typeof setupPresence === 'function') setupPresence(last);
+                return;
+            }
+        }
         createFirebaseSession();
     }
 }

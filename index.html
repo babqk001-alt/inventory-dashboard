@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="EMP 재고 데이터와 현장 실사 데이터를 비교 분석하는 재고실사 대시보드입니다.">
+    <meta name="theme-color" content="#4F46E5">
+    <meta property="og:title" content="재고실사 대시보드">
+    <meta property="og:description" content="EMP 재고와 실사 데이터를 실시간 비교 분석합니다.">
+    <meta property="og:type" content="website">
     <title>재고실사 대시보드 | Inventory Comparison Dashboard</title>
     <!-- 파비콘 — 클립보드+체크 아이콘 (SVG 인라인, 별도 파일 불필요) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%234F6BED'/%3E%3Crect x='9' y='6' width='14' height='18' rx='2' fill='white'/%3E%3Crect x='11' y='4' width='10' height='4' rx='2' fill='%23CBD5E1'/%3E%3Cline x1='12' y1='13' x2='20' y2='13' stroke='%234F6BED' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='12' y1='16' x2='20' y2='16' stroke='%234F6BED' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpolyline points='12,19.5 13.5,21 16.5,18' stroke='%2322C55E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
@@ -13,12 +18,12 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
           crossorigin>
     <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous" defer></script>
     <!-- html5-qrcode (카메라 바코드 스캔) -->
-    <script src="https://unpkg.com/html5-qrcode" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous" defer></script>
 
     <!-- Firebase (App + Auth + Realtime Database) — compat SDK v10.8.0 -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" defer></script>
@@ -94,11 +99,11 @@
                     <div class="mapping-block">
                         <h3 class="emp-label"><i class="fas fa-database"></i> EMP 데이터 컬럼 매핑</h3>
                         <div class="mapping-fields" id="emp-mapping-fields">
-                            <div class="mapping-row"><label>SKU <span class="required">*</span></label><select id="emp-map-sku" class="map-select"></select></div>
-                            <div class="mapping-row"><label>바코드</label><select id="emp-map-barcode" class="map-select"></select></div>
-                            <div class="mapping-row"><label>상품명</label><select id="emp-map-name" class="map-select"></select></div>
-                            <div class="mapping-row"><label>수량 <span class="required">*</span></label><select id="emp-map-qty" class="map-select"></select></div>
-                            <div class="mapping-row"><label>위치 <span class="required">*</span></label><select id="emp-map-location" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="emp-map-sku">SKU <span class="required">*</span></label><select id="emp-map-sku" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="emp-map-barcode">바코드</label><select id="emp-map-barcode" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="emp-map-name">상품명</label><select id="emp-map-name" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="emp-map-qty">수량 <span class="required">*</span></label><select id="emp-map-qty" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="emp-map-location">위치 <span class="required">*</span></label><select id="emp-map-location" class="map-select"></select></div>
                         </div>
                     </div>
 
@@ -106,11 +111,11 @@
                     <div class="mapping-block" id="physical-mapping-block">
                         <h3 class="physical-label"><i class="fas fa-clipboard-list"></i> 실사 데이터 컬럼 매핑</h3>
                         <div class="mapping-fields" id="physical-mapping-fields">
-                            <div class="mapping-row"><label>SKU <span class="required">*</span></label><select id="physical-map-sku" class="map-select"></select></div>
-                            <div class="mapping-row"><label>바코드</label><select id="physical-map-barcode" class="map-select"></select></div>
-                            <div class="mapping-row"><label>상품명</label><select id="physical-map-name" class="map-select"></select></div>
-                            <div class="mapping-row"><label>수량 <span class="required">*</span></label><select id="physical-map-qty" class="map-select"></select></div>
-                            <div class="mapping-row"><label>위치 <span class="required">*</span></label><select id="physical-map-location" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="physical-map-sku">SKU <span class="required">*</span></label><select id="physical-map-sku" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="physical-map-barcode">바코드</label><select id="physical-map-barcode" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="physical-map-name">상품명</label><select id="physical-map-name" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="physical-map-qty">수량 <span class="required">*</span></label><select id="physical-map-qty" class="map-select"></select></div>
+                            <div class="mapping-row"><label for="physical-map-location">위치 <span class="required">*</span></label><select id="physical-map-location" class="map-select"></select></div>
                         </div>
                     </div>
                 </div>
@@ -184,6 +189,7 @@
                         <button class="btn-firebase-sync" id="firebase-sync-btn">
                             <i class="fas fa-tower-broadcast"></i>
                             <span class="desktop-only">실시간 동기화</span>
+                            <span class="mobile-only">동기화</span>
                         </button>
                         <span class="firebase-sync-indicator" id="firebase-sync-indicator" style="display:none;"></span>
                         <span class="firebase-session-label desktop-only" id="firebase-session-label"></span>
@@ -308,11 +314,11 @@
                     </div>
                 </div>
                 <div class="sidebar-section">
-                    <label class="sidebar-label">창고 구역 (Zone)</label>
+                    <label class="sidebar-label" for="zone-filter">창고 구역 (Zone)</label>
                     <select id="zone-filter" class="sidebar-select"><option value="ALL">전체 구역</option></select>
                 </div>
                 <div class="sidebar-section">
-                    <label class="sidebar-label">세부 위치 (Location)</label>
+                    <label class="sidebar-label" for="location-filter">세부 위치 (Location)</label>
                     <select id="location-filter" class="sidebar-select"><option value="ALL">전체 위치</option></select>
                     <p class="search-hint">스캔 시 이 위치를 우선 매칭합니다</p>
                 </div>
@@ -390,6 +396,7 @@
                             <button class="btn-page" id="prev-page-btn"><i class="fas fa-chevron-left"></i></button>
                             <span id="page-info">1 / 1</span>
                             <button class="btn-page" id="next-page-btn"><i class="fas fa-chevron-right"></i></button>
+                            <label for="page-size-select" class="visually-hidden">페이지 행 수</label>
                             <select id="page-size-select" class="sidebar-select" style="width:auto;margin-left:8px;">
                                 <option value="25">25행</option>
                                 <option value="50" selected>50행</option>
@@ -555,8 +562,8 @@
 
     <!-- 다중 검색 모달 -->
     <div id="multi-search-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content">
-            <div class="modal-header"><h3><i class="fas fa-magnifying-glass-plus"></i> 다중 검색</h3><button class="modal-close-btn" id="multi-search-close-btn"><i class="fas fa-xmark"></i></button></div>
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title-multi-search">
+            <div class="modal-header"><h3 id="modal-title-multi-search"><i class="fas fa-magnifying-glass-plus"></i> 다중 검색</h3><button class="modal-close-btn" id="multi-search-close-btn"><i class="fas fa-xmark"></i></button></div>
             <div class="modal-body">
                 <p class="modal-desc">여러 개의 SKU, 바코드, 상품명을 한 번에 검색합니다.<br>쉼표(,), 공백, 줄바꿈으로 구분하여 입력하세요.</p>
                 <textarea id="multi-search-textarea" rows="8" placeholder="예시:&#10;SKU001, SKU002&#10;SKU003&#10;8801234567890"></textarea>
@@ -571,8 +578,8 @@
 
     <!-- 카메라 스캔 모달 -->
     <div id="camera-scan-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content modal-camera">
-            <div class="modal-header"><h3><i class="fas fa-camera"></i> 카메라 바코드 스캔</h3><button class="modal-close-btn" id="camera-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
+        <div class="modal-content modal-camera" role="dialog" aria-modal="true" aria-labelledby="modal-title-camera">
+            <div class="modal-header"><h3 id="modal-title-camera"><i class="fas fa-camera"></i> 카메라 바코드 스캔</h3><button class="modal-close-btn" id="camera-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
             <div class="modal-body camera-body">
                 <p class="modal-desc">카메라를 바코드에 맞춰주세요. 자동으로 인식됩니다.</p>
                 <div id="camera-reader"></div>
@@ -584,8 +591,8 @@
 
     <!-- 이전 작업 복원 모달 -->
     <div id="restore-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content modal-restore">
-            <div class="modal-header"><h3><i class="fas fa-clock-rotate-left"></i> 이전 작업 복구</h3><button class="modal-close-btn" id="restore-close-btn"><i class="fas fa-xmark"></i></button></div>
+        <div class="modal-content modal-restore" role="dialog" aria-modal="true" aria-labelledby="modal-title-restore">
+            <div class="modal-header"><h3 id="modal-title-restore"><i class="fas fa-clock-rotate-left"></i> 이전 작업 복구</h3><button class="modal-close-btn" id="restore-close-btn"><i class="fas fa-xmark"></i></button></div>
             <div class="modal-body">
                 <div class="restore-info"><i class="fas fa-database restore-icon"></i><div class="restore-details"><p class="restore-title">이전 작업 내역이 발견되었습니다!</p><p class="restore-meta" id="restore-meta"></p></div></div>
                 <p class="modal-desc">이전에 저장된 재고 비교 데이터를 불러오시겠습니까?<br>불러오면 대시보드 화면으로 바로 이동합니다.</p>
@@ -599,8 +606,8 @@
 
     <!-- 복수 위치 선택 모달 -->
     <div id="dup-scan-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content" style="max-width:520px;">
-            <div class="modal-header"><h3><i class="fas fa-map-location-dot"></i> 위치 선택</h3><button class="modal-close-btn" id="dup-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
+        <div class="modal-content" style="max-width:520px;" role="dialog" aria-modal="true" aria-labelledby="modal-title-dup-scan">
+            <div class="modal-header"><h3 id="modal-title-dup-scan"><i class="fas fa-map-location-dot"></i> 위치 선택</h3><button class="modal-close-btn" id="dup-scan-close-btn"><i class="fas fa-xmark"></i></button></div>
             <div class="modal-body">
                 <p class="modal-desc" id="dup-scan-desc">동일 상품이 여러 위치에 존재합니다.</p>
                 <div id="dup-scan-list" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;"></div>
@@ -699,9 +706,9 @@
 
     <!-- 세션 전환 모달 (작업자용) -->
     <div id="session-switch-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content" style="max-width:480px;">
+        <div class="modal-content" style="max-width:480px;" role="dialog" aria-modal="true" aria-labelledby="modal-title-session-switch">
             <div class="modal-header">
-                <h3><i class="fas fa-arrows-rotate"></i> 세션 전환</h3>
+                <h3 id="modal-title-session-switch"><i class="fas fa-arrows-rotate"></i> 세션 전환</h3>
                 <button class="modal-close-btn" id="session-switch-close-btn"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="modal-body" style="padding:12px 20px 20px;">
@@ -717,9 +724,9 @@
 
     <!-- 사용자 관리 모달 (Admin 전용) -->
     <div id="user-manage-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content modal-user-manage">
+        <div class="modal-content modal-user-manage" role="dialog" aria-modal="true" aria-labelledby="modal-title-user-manage">
             <div class="modal-header">
-                <h3><i class="fas fa-users-gear"></i> 사용자 관리</h3>
+                <h3 id="modal-title-user-manage"><i class="fas fa-users-gear"></i> 사용자 관리</h3>
                 <button class="modal-close-btn" id="user-manage-close-btn"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="modal-body">
@@ -742,7 +749,7 @@
     </div>
 
     <!-- Toast 컨테이너 + 로딩 오버레이 -->
-    <div id="toast-container"></div>
+    <div id="toast-container" aria-live="polite" aria-atomic="false" role="status"></div>
     <div id="loading-overlay" style="display:none;">
         <div class="spinner-wrap"><div class="spinner"></div><p>비교 분석 중...</p></div>
     </div>

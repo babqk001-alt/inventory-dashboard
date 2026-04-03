@@ -5,6 +5,19 @@
    + Touch-friendly +/- buttons
    ═══════════════════════════════════════════════════════ */
 
+/* ── 접근성 유틸리티 ────────────────────────────────── */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* ── CSS Variables / Design Tokens ────────────────── */
 :root {
     /* Typography */
@@ -2662,7 +2675,7 @@ textarea:focus-visible {
 
 @media (max-width: 768px) {
     .firebase-session-label { display: none; }
-    .btn-firebase-sync span { display: none; }
+    .btn-firebase-sync span.desktop-only { display: none; }
     .btn-firebase-sync { padding: 7px 10px; }
 }
 
