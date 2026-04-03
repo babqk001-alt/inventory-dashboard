@@ -415,20 +415,34 @@ async function switchToSession(newSessionId) {
         if (!confirmed) return;
     }
 
-    // [FIX A] 현재 세션의 수정된 행만 Firebase에 강제 push
+    // ── [P0-3a] 전환 전 _touched 행 Firebase 강제 push — 완료까지 대기 ──
     // handleLiveQtyInput()은 메모리만 갱신하고 debouncedPushRow를 호출하지 않으므로
     // blur 이벤트 없이 전환하면 Firebase에 기록 안 된 데이터가 있을 수 있음
+    // pushRowToFirebase()가 이제 Promise를 반환하므로 await로 서버 ACK 보장
     if (typeof FirebaseSync !== 'undefined' && FirebaseSync.enabled
         && FirebaseSync.sessionId && AppState.comparisonResult?.length) {
+        const pushPromises = [];
         AppState.comparisonResult.forEach(row => {
             if (row._touched) {
-                pushRowToFirebase(row._rowId);
+                pushPromises.push(pushRowToFirebase(row._rowId));
             }
         });
+        if (pushPromises.length > 0) {
+            console.log(`[Session] 전환 전 ${pushPromises.length}건 Firebase 강제 push (await)`);
+            const results = await Promise.allSettled(pushPromises);
+            const failCount = results.filter(r => r.status === 'rejected').length;
+            console.log(`[Session] 강제 push 완료 — 성공: ${pushPromises.length - failCount}, 실패: ${failCount}`);
+            if (failCount > 0) {
+                toast(`${failCount}건 동기화 실패 — 세션 전환을 중단합니다. 네트워크를 확인 후 다시 시도하세요.`, 'error');
+                return;  // 전환 중단 — 현재 세션 데이터가 아직 메모리에 있으므로 안전
+            }
+        }
     }
 
-    // 1) 현재 세션 대기 중인 push 즉시 플러시
-    if (typeof flushPendingRowPushes === 'function') flushPendingRowPushes();
+    // 1) 현재 세션 대기 중인 debouncedPushRow 타이머 즉시 플러시 + 완료 대기
+    if (typeof flushPendingRowPushes === 'function') {
+        await flushPendingRowPushes();
+    }
 
     // 2) 현재 세션 나가기
     if (typeof leaveSession === 'function') leaveSession();
@@ -465,9 +479,24 @@ async function switchToSession(newSessionId) {
         }
     }
 
-    // [FIX B] _autoRunComparison 미실행 시에도 paused 해제 + done 동기화
+    // [P0-3b] paused 해제 + done 동기화
     if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = false;
     if (typeof _syncRemoteCompletedToLocal === 'function') _syncRemoteCompletedToLocal();
+
+    // ── [P0-3c] paused 중 드롭된 rows 이벤트 보정 — 재복원 1회 ──
+    // _processingPaused 동안 child_added/changed가 버려졌을 수 있음
+    // (다른 작업자가 paused 구간에 push한 데이터, 또는 지연 도착한 자체 push)
+    if (dataLoaded && FirebaseSync?.sessionId && typeof restoreRowsFromFirebase === 'function') {
+        try {
+            const extraRestored = await restoreRowsFromFirebase(FirebaseSync.sessionId);
+            if (extraRestored > 0) {
+                AppState.filteredResult = [...AppState.comparisonResult];
+                console.log(`[Session] paused 해제 후 추가 복원: ${extraRestored}건`);
+            }
+        } catch (e) {
+            console.warn('[Session] 추가 복원 실패:', e.message);
+        }
+    }
 
     // 7) UI 렌더링 — 성공/실패 모두 한 번은 렌더 (이전 세션 DOM 잔상 제거)
     if (typeof populateZoneFilter === 'function') populateZoneFilter(AppState.comparisonResult);

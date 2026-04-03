@@ -372,13 +372,15 @@ function _syncRemoteCompletedToLocal() {
  * @param {string} rowId - AppState row의 _rowId
  */
 function pushRowToFirebase(rowId) {
-    if (!FirebaseSync.enabled || !FirebaseSync.sessionId) return;
+    if (!FirebaseSync.enabled || !FirebaseSync.sessionId) return Promise.resolve();
     const row = AppState.comparisonResult.find(r => r._rowId === rowId);
-    if (!row) return;
+    if (!row) return Promise.resolve();
 
     const fbKey = getFirebaseKey(row);
 
-    FirebaseSync.db.ref(DB_PATH.rowItem(FirebaseSync.sessionId, fbKey)).update({
+    // [P0-1] Promise를 return → 호출자가 await 가능
+    // p.catch()로 unhandled rejection 방지 (기존 fire-and-forget 호출자 호환)
+    const p = FirebaseSync.db.ref(DB_PATH.rowItem(FirebaseSync.sessionId, fbKey)).update({
         physicalQty: row.physicalQty,
         status:      row.status,
         reason:      row.reason || '',
@@ -391,10 +393,11 @@ function pushRowToFirebase(rowId) {
         // [Auth v1.0] 신규 필드 (기존 필드 대체 아님)
         lastUpdatedByUid:  AppState.currentUser?.uid         || null,
         lastUpdatedByName: AppState.currentUser?.displayName || null,
-    })
-    .catch(() => {
+    });
+    p.catch(() => {
         toast('동기화 실패 — 네트워크/권한 확인', 'error');
     });
+    return p;
 }
 
 /** 행 push 디바운스 (400ms). 빠른 타이핑 시 과도한 write 방지. */
@@ -410,13 +413,16 @@ function debouncedPushRow(rowId) {
  */
 function flushPendingRowPushes() {
     const pending = Object.keys(_rowPushTimers);
-    if (pending.length === 0) return;
+    if (pending.length === 0) return Promise.resolve();
     console.log(`[FB] flushPendingRowPushes: ${pending.length}건 즉시 push`);
-    pending.forEach(rowId => {
+    // [P0-2] Promise.allSettled 반환 → 호출자가 await 가능
+    // 기존 fire-and-forget 호출자(beforeunload 등)는 반환값 무시하므로 하위 호환
+    const promises = pending.map(rowId => {
         clearTimeout(_rowPushTimers[rowId]);
         delete _rowPushTimers[rowId];
-        pushRowToFirebase(rowId);
+        return pushRowToFirebase(rowId);
     });
+    return Promise.allSettled(promises);
 }
 
 /** 구역 진행률 push — 행 단위 push로 대체됨 (no-op 유지, 외부 호출 호환). */
