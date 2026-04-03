@@ -401,6 +401,21 @@ function debouncedPushRow(rowId) {
     _rowPushTimers[rowId] = setTimeout(() => pushRowToFirebase(rowId), 400);
 }
 
+/**
+ * 대기 중인 모든 행 push 타이머를 즉시 실행합니다.
+ * beforeunload / visibilitychange / 세션 전환 시 호출하여 데이터 유실을 방지합니다.
+ */
+function flushPendingRowPushes() {
+    const pending = Object.keys(_rowPushTimers);
+    if (pending.length === 0) return;
+    console.log(`[FB] flushPendingRowPushes: ${pending.length}건 즉시 push`);
+    pending.forEach(rowId => {
+        clearTimeout(_rowPushTimers[rowId]);
+        delete _rowPushTimers[rowId];
+        pushRowToFirebase(rowId);
+    });
+}
+
 /** 구역 진행률 push — 행 단위 push로 대체됨 (no-op 유지, 외부 호출 호환). */
 function debouncedPushToFirebase() { /* no-op */ }
 
@@ -472,8 +487,10 @@ async function restoreRowsFromFirebase(sessionId) {
                 return;
             }
 
-            // physicalQty 복원 (0이 아닌 값만 — 0은 초기값이므로 덮어쓸 필요 없음)
-            if (typeof data.physicalQty === 'number' && data.physicalQty !== 0) {
+            // [BUG2 FIX] physicalQty가 number이면 무조건 복원
+            // Firebase rows에 기록된 시점에서 pushRowToFirebase()를 거친 것이므로
+            // 0이어도 사용자가 명시적으로 저장한 값임
+            if (typeof data.physicalQty === 'number') {
                 row.physicalQty = data.physicalQty;
                 row.difference  = data.physicalQty - (row.empQty || 0);
                 row.status      = data.physicalQty === row.empQty ? 'MATCH' : 'MISMATCH';
@@ -672,7 +689,11 @@ function toggleRowDone(rowId) {
 
     _rerenderDoneRow(rowId);
     triggerAutoSave();
-    debouncedPushRow(rowId);
+    // [BUG1 FIX] 완료 처리 시 physicalQty 즉시 push (디바운스 우회)
+    // done은 이미 즉시 저장되므로, row 데이터도 즉시 저장해야 원자성 보장
+    clearTimeout(_rowPushTimers[rowId]);
+    delete _rowPushTimers[rowId];
+    pushRowToFirebase(rowId);
 
     requestAnimationFrame(() => { scrollParent.scrollTop = savedScrollTop; });
 }

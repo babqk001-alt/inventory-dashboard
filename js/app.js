@@ -12,8 +12,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // H10: 미처리 Promise 거부 전역 핸들러
     // ══════════════════════════════════════════════════════
     window.addEventListener('unhandledrejection', (event) => {
-        console.error('[Unhandled]', event.reason);
         toast('예기치 않은 오류가 발생했습니다.', 'error');
+    });
+
+    // ══════════════════════════════════════════════════════
+    // [BUG1 FIX] 페이지 이탈 시 미저장 Firebase 데이터 즉시 플러시 (보조 안전장치)
+    // ══════════════════════════════════════════════════════
+    window.addEventListener('beforeunload', () => {
+        if (typeof flushPendingRowPushes === 'function') flushPendingRowPushes();
+        if (typeof persistState === 'function') persistState();
+    });
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            if (typeof flushPendingRowPushes === 'function') flushPendingRowPushes();
+            if (typeof persistState === 'function') persistState();
+        }
     });
 
     // ══════════════════════════════════════════════════════
@@ -24,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof initFirebaseAuth === 'function') {
         initFirebaseAuth();
     } else {
-        console.warn('[App] auth.js 미로드 — initFirebase() 직접 호출 (폴백)');
         initFirebase();
     }
 
@@ -114,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 triggerAutoSave();
             } catch (err) {
-                console.error(err);
                 toast('비교 분석 중 오류 발생: ' + err.message, 'error');
             } finally {
                 setLoading(false);
@@ -408,6 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const assigneeResetBtn = document.getElementById('assignee-reset-btn');
     if (assigneeResetBtn) assigneeResetBtn.addEventListener('click', resetAllAssignees);
+
+    const chipList = document.getElementById('assignee-chip-list');
+    if (chipList) chipList.addEventListener('click', e => {
+        const btn = e.target.closest('.assignee-chip-del');
+        if (btn) removeWorker(btn.dataset.worker);
+    });
 
     // ══════════════════════════════════════════════════════
     // 다크모드 초기화

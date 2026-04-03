@@ -312,7 +312,8 @@ async function _autoRunComparison() {
         const savedQtyMap = new Map();
         if (AppState.comparisonResult?.length && typeof getFirebaseKey === 'function') {
             AppState.comparisonResult.forEach(r => {
-                if (r.physicalQty != null && r.physicalQty !== 0) {
+                // [BUG2 FIX] _touched 또는 physicalQty > 0인 행은 모두 보존
+                if (r.physicalQty != null && (r.physicalQty !== 0 || r._touched)) {
                     const key = getFirebaseKey(r);
                     savedQtyMap.set(key, {
                         physicalQty: r.physicalQty,
@@ -398,28 +399,68 @@ async function _autoRunComparison() {
 
 /**
  * 작업 중 세션 전환
+ * [BUG3 FIX] 기존: leaveSession + joinSession만 실행 → 데이터 오염
+ *            수정: flush → leave → 초기화 → EMP 재로딩 → 비교 재실행 → Firebase 복원 → 렌더
  */
 async function switchToSession(newSessionId) {
-    // 미저장 데이터 확인
     const hasUnsaved = AppState.completedRows && AppState.completedRows.size > 0;
     if (hasUnsaved) {
-        const confirmed = window.confirm('세션을 전환하시겠습니까?\n현재 세션의 동기화된 데이터는 유지됩니다.');
+        const confirmed = window.confirm(
+            '세션을 전환하시겠습니까?\n현재 세션의 동기화된 데이터는 유지됩니다.'
+        );
         if (!confirmed) return;
     }
 
-    // 현재 세션 나가기
+    // 1) 현재 세션 대기 중인 push 즉시 플러시
+    if (typeof flushPendingRowPushes === 'function') flushPendingRowPushes();
+
+    // 2) 현재 세션 나가기
     if (typeof leaveSession === 'function') leaveSession();
 
-    // 새 세션 참가
+    // 3) 이전 세션 로컬 상태 초기화 (데이터 오염 방지)
+    AppState.completedRows = new Set();
+    notifySubscribers('completedRows', AppState.completedRows, null);
+    AppState.comparisonResult = [];
+    AppState.filteredResult   = [];
+
+    // 4) 새 세션 참가 + presence
     if (typeof joinSession === 'function') joinSession(newSessionId, false);
     if (typeof setupPresence === 'function') setupPresence(newSessionId);
+
+    // 5) 새 세션 EMP 로딩 (기존 _autoLoadSessionData 재활용)
+    let dataLoaded = false;
+    try {
+        dataLoaded = await _autoLoadSessionData(newSessionId);
+    } catch (e) {
+        console.warn('[Session] 세션 전환 EMP 로딩 실패:', e.message);
+    }
+
+    // 6) 비교 분석 + Firebase 복원 (기존 _autoRunComparison 재활용)
+    if (dataLoaded) {
+        try {
+            await _autoRunComparison();
+        } catch (e) {
+            console.warn('[Session] 세션 전환 비교 분석 실패:', e.message);
+        }
+    }
+
+    // 7) UI 렌더링 — 성공/실패 모두 한 번은 렌더 (이전 세션 DOM 잔상 제거)
+    if (typeof populateZoneFilter === 'function') populateZoneFilter(AppState.comparisonResult);
+    if (typeof renderMainTable === 'function') renderMainTable();
+    if (typeof renderKPIs === 'function') renderKPIs(AppState.comparisonResult);
+    if (typeof renderZoneProgress === 'function') renderZoneProgress();
 
     // 모달 닫기
     const modal = document.getElementById('session-switch-modal');
     if (modal) modal.style.display = 'none';
 
+    // 8) 토스트 — 성공/실패 분리
     if (typeof toast === 'function') {
-        toast(`세션 전환 완료: ${newSessionId}`, 'success');
+        if (dataLoaded && AppState.comparisonResult?.length) {
+            toast(`세션 전환 완료: ${newSessionId}`, 'success');
+        } else {
+            toast('세션에 연결했지만 EMP 데이터를 불러오지 못했습니다.', 'warning');
+        }
     }
 }
 
