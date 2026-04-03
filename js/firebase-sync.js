@@ -265,6 +265,9 @@ function _startListeners() {
     const doneRef = db.ref(DB_PATH.done(sid));
     doneRef.on('value', snap => {
         FirebaseSync.remoteCompleted = snap.val() || {};
+        // [FIX C] 비교 분석 중에는 동기화/렌더 건너뜀 (remoteCompleted는 항상 갱신)
+        // → 언패즈 후 _autoRunComparison() finally에서 1회 강제 동기화
+        if (FirebaseSync._processingPaused) return;
         _syncRemoteCompletedToLocal();
         if (typeof renderMainTable === 'function') renderMainTable();
     });

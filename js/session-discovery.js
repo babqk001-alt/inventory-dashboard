@@ -393,7 +393,11 @@ async function _autoRunComparison() {
         console.warn('[Session] 자동 비교 분석 실패:', e.message);
     } finally {
         // [FIX] 원격 수신 재개
-        if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = false;
+        if (typeof FirebaseSync !== 'undefined') {
+            FirebaseSync._processingPaused = false;
+            // [FIX C 보완] paused 중 done 리스너가 건너뛴 동기화를 여기서 1회 실행
+            if (typeof _syncRemoteCompletedToLocal === 'function') _syncRemoteCompletedToLocal();
+        }
     }
 }
 
@@ -411,6 +415,18 @@ async function switchToSession(newSessionId) {
         if (!confirmed) return;
     }
 
+    // [FIX A] 현재 세션의 수정된 행만 Firebase에 강제 push
+    // handleLiveQtyInput()은 메모리만 갱신하고 debouncedPushRow를 호출하지 않으므로
+    // blur 이벤트 없이 전환하면 Firebase에 기록 안 된 데이터가 있을 수 있음
+    if (typeof FirebaseSync !== 'undefined' && FirebaseSync.enabled
+        && FirebaseSync.sessionId && AppState.comparisonResult?.length) {
+        AppState.comparisonResult.forEach(row => {
+            if (row._touched) {
+                pushRowToFirebase(row._rowId);
+            }
+        });
+    }
+
     // 1) 현재 세션 대기 중인 push 즉시 플러시
     if (typeof flushPendingRowPushes === 'function') flushPendingRowPushes();
 
@@ -422,6 +438,11 @@ async function switchToSession(newSessionId) {
     notifySubscribers('completedRows', AppState.completedRows, null);
     AppState.comparisonResult = [];
     AppState.filteredResult   = [];
+
+    // [FIX B] 세션 전환 중 원격 이벤트 차단
+    // joinSession()이 _startListeners()를 즉시 호출하는데,
+    // done 리스너가 비어있는 comparisonResult로 renderMainTable() 호출 방지
+    if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = true;
 
     // 4) 새 세션 참가 + presence
     if (typeof joinSession === 'function') joinSession(newSessionId, false);
@@ -443,6 +464,10 @@ async function switchToSession(newSessionId) {
             console.warn('[Session] 세션 전환 비교 분석 실패:', e.message);
         }
     }
+
+    // [FIX B] _autoRunComparison 미실행 시에도 paused 해제 + done 동기화
+    if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = false;
+    if (typeof _syncRemoteCompletedToLocal === 'function') _syncRemoteCompletedToLocal();
 
     // 7) UI 렌더링 — 성공/실패 모두 한 번은 렌더 (이전 세션 DOM 잔상 제거)
     if (typeof populateZoneFilter === 'function') populateZoneFilter(AppState.comparisonResult);
