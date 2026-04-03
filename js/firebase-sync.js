@@ -452,20 +452,30 @@ async function restoreRowsFromFirebase(sessionId) {
     try {
         const snap = await FirebaseSync.db.ref(DB_PATH.rows(sessionId)).once('value');
         const allRows = snap.val();
-        if (!allRows) return 0;
+        if (!allRows) {
+            console.warn('[FB] restoreRowsFromFirebase: Firebase rows 비어있음 (sessionId:', sessionId, ')');
+            return 0;
+        }
+
+        const fbKeys = Object.keys(allRows);
+        console.log(`[FB] restoreRowsFromFirebase: Firebase에 ${fbKeys.length}건 rows 발견`);
 
         let restored = 0;
-        Object.keys(allRows).forEach(fbKey => {
+        let notMatched = 0;
+        fbKeys.forEach(fbKey => {
             const data = allRows[fbKey];
             if (!data) return;
 
             const row = findRowByFirebaseKey(fbKey);
-            if (!row) return;
+            if (!row) {
+                notMatched++;
+                return;
+            }
 
-            // physicalQty 복원
+            // physicalQty 복원 (0이 아닌 값만 — 0은 초기값이므로 덮어쓸 필요 없음)
             if (typeof data.physicalQty === 'number' && data.physicalQty !== 0) {
                 row.physicalQty = data.physicalQty;
-                row.difference  = data.physicalQty - row.empQty;
+                row.difference  = data.physicalQty - (row.empQty || 0);
                 row.status      = data.physicalQty === row.empQty ? 'MATCH' : 'MISMATCH';
                 restored++;
             }
@@ -473,6 +483,10 @@ async function restoreRowsFromFirebase(sessionId) {
             if (data.reason) row.reason = data.reason;
             if (data.memo)   row.memo   = data.memo;
         });
+
+        if (notMatched > 0) {
+            console.warn(`[FB] restoreRowsFromFirebase: ${notMatched}건 키 매칭 실패`);
+        }
 
         // filteredResult도 동기화
         if (restored > 0) {

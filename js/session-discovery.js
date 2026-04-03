@@ -298,7 +298,7 @@ async function _autoLoadSessionData(sessionId) {
 
 /**
  * 컬럼 자동 매핑 + 비교 분석 자동 실행
- * [FIX] 비교 분석 중 Firebase 리스너 일시 정지 → 비교 후 Firebase rows 일괄 복원
+ * [FIX] 비교 전 기존 실사 데이터를 맵에 보존 → 비교 후 복원 + Firebase 보강
  */
 async function _autoRunComparison() {
     try {
@@ -306,6 +306,25 @@ async function _autoRunComparison() {
 
         // [FIX] 비교 분석 중 원격 수신 일시 정지 (race condition 방지)
         if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = true;
+
+        // ── [FIX 핵심] 비교 실행 전 기존 physicalQty를 SKU+위치 키로 보존 ──
+        // localStorage 복구 데이터 또는 이전 세션 데이터를 잃지 않기 위함
+        const savedQtyMap = new Map();
+        if (AppState.comparisonResult?.length && typeof getFirebaseKey === 'function') {
+            AppState.comparisonResult.forEach(r => {
+                if (r.physicalQty != null && r.physicalQty !== 0) {
+                    const key = getFirebaseKey(r);
+                    savedQtyMap.set(key, {
+                        physicalQty: r.physicalQty,
+                        reason:      r.reason || '',
+                        memo:        r.memo   || '',
+                    });
+                }
+            });
+        }
+        const savedCompletedRows = AppState.completedRows
+            ? new Set(AppState.completedRows)
+            : new Set();
 
         // 컬럼 자동 매핑 (guessColumn 사용)
         const empMapping = {};
@@ -334,13 +353,39 @@ async function _autoRunComparison() {
             AppState.filteredResult   = [...AppState.comparisonResult];
         }
 
-        // [FIX] Firebase rows에서 physicalQty/reason/memo 일괄 복원
-        // 비교 분석이 physicalQty=0으로 초기화하므로, Firebase에 저장된 실사 데이터를 덮어씌움
+        // ── [FIX 1단계] 로컬 맵에서 physicalQty 복원 (localStorage 복구 데이터) ──
+        let localRestored = 0;
+        if (savedQtyMap.size > 0 && AppState.comparisonResult?.length) {
+            AppState.comparisonResult.forEach(r => {
+                const key = typeof getFirebaseKey === 'function' ? getFirebaseKey(r) : null;
+                if (!key) return;
+                const saved = savedQtyMap.get(key);
+                if (saved) {
+                    r.physicalQty = saved.physicalQty;
+                    r.difference  = saved.physicalQty - (r.empQty || 0);
+                    r.status      = saved.physicalQty === r.empQty ? 'MATCH' : 'MISMATCH';
+                    if (saved.reason) r.reason = saved.reason;
+                    if (saved.memo)   r.memo   = saved.memo;
+                    localRestored++;
+                }
+            });
+            // completedRows도 복원 (rowId가 변경되었으므로 키 기반으로 재매핑)
+            if (savedCompletedRows.size > 0) {
+                // 구 rowId → 신 rowId 매핑은 불가하므로, Firebase done 상태에서 복원
+            }
+            if (localRestored > 0) {
+                AppState.filteredResult = [...AppState.comparisonResult];
+                console.log(`[Session] 로컬 맵에서 ${localRestored}건 실사 데이터 복원`);
+            }
+        }
+
+        // ── [FIX 2단계] Firebase rows에서 추가 복원 (다른 작업자 데이터 포함) ──
         const sessionId = window.FirebaseSync?.sessionId;
         if (sessionId && typeof restoreRowsFromFirebase === 'function') {
-            const restored = await restoreRowsFromFirebase(sessionId);
-            if (restored > 0) {
-                console.log(`[Session] Firebase에서 ${restored}건 실사 데이터 복원 완료`);
+            const fbRestored = await restoreRowsFromFirebase(sessionId);
+            if (fbRestored > 0) {
+                AppState.filteredResult = [...AppState.comparisonResult];
+                console.log(`[Session] Firebase에서 ${fbRestored}건 실사 데이터 복원`);
             }
         }
     } catch (e) {
