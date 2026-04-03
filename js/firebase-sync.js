@@ -437,6 +437,55 @@ function findRowByFirebaseKey(fbKey) {
     return AppState.comparisonResult.find(r => r._rowId === fbKey) || null;
 }
 
+// ── Firebase → 로컬 일괄 복원 ────────────────────────────
+
+/**
+ * 세션의 Firebase rows 데이터를 일괄 읽어 로컬 comparisonResult에 병합합니다.
+ * 세션 재접속 시 비교 분석 후 physicalQty/reason/memo를 복원하는 데 사용합니다.
+ * @param {string} sessionId
+ * @returns {Promise<number>} 복원된 행 수
+ */
+async function restoreRowsFromFirebase(sessionId) {
+    if (!FirebaseSync.db || !sessionId) return 0;
+    if (!AppState.comparisonResult?.length) return 0;
+
+    try {
+        const snap = await FirebaseSync.db.ref(DB_PATH.rows(sessionId)).once('value');
+        const allRows = snap.val();
+        if (!allRows) return 0;
+
+        let restored = 0;
+        Object.keys(allRows).forEach(fbKey => {
+            const data = allRows[fbKey];
+            if (!data) return;
+
+            const row = findRowByFirebaseKey(fbKey);
+            if (!row) return;
+
+            // physicalQty 복원
+            if (typeof data.physicalQty === 'number' && data.physicalQty !== 0) {
+                row.physicalQty = data.physicalQty;
+                row.difference  = data.physicalQty - row.empQty;
+                row.status      = data.physicalQty === row.empQty ? 'MATCH' : 'MISMATCH';
+                restored++;
+            }
+            // reason / memo 복원
+            if (data.reason) row.reason = data.reason;
+            if (data.memo)   row.memo   = data.memo;
+        });
+
+        // filteredResult도 동기화
+        if (restored > 0) {
+            AppState.filteredResult = [...AppState.comparisonResult];
+        }
+
+        return restored;
+    } catch (e) {
+        console.warn('[FB] restoreRowsFromFirebase 실패:', e.message);
+        return 0;
+    }
+}
+
 // ── 행 잠금 ─────────────────────────────────────────────
 
 /**

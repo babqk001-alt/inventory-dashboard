@@ -73,7 +73,6 @@ async function discoverActiveSessions() {
 
         return sessions;
     } catch (e) {
-        console.error('[SessionDiscovery] 세션 검색 실패:', e.message);
         return [];
     }
 }
@@ -252,7 +251,6 @@ async function selectSession(sessionId) {
             toast(`세션 ${sessionId} 연결 완료`, 'success');
         }
     } catch (e) {
-        console.error('[SessionDiscovery] 세션 연결 실패:', e);
         if (typeof toast === 'function') {
             toast('세션 연결에 실패했습니다: ' + e.message, 'error');
         }
@@ -271,12 +269,10 @@ async function _autoLoadSessionData(sessionId) {
         const meta = metaSnap.val();
 
         if (!meta?.dataSource?.empUrl) {
-            console.warn('[SessionDiscovery] 세션에 dataSource 정보 없음 — 수동 로딩 필요');
             return false;
         }
 
         const empUrl = meta.dataSource.empUrl;
-        console.log('[SessionDiscovery] EMP 자동 fetch:', empUrl);
 
         // XLSX 라이브러리 로드
         if (typeof loadXLSX === 'function') await loadXLSX();
@@ -294,21 +290,22 @@ async function _autoLoadSessionData(sessionId) {
 
         AppState.empRawData = jsonData;
         AppState.empColumns = Object.keys(jsonData[0]);
-
-        console.log(`[SessionDiscovery] EMP 로드 완료: ${jsonData.length}행`);
         return true;
     } catch (e) {
-        console.error('[SessionDiscovery] EMP 자동 로딩 실패:', e);
         return false;
     }
 }
 
 /**
  * 컬럼 자동 매핑 + 비교 분석 자동 실행
+ * [FIX] 비교 분석 중 Firebase 리스너 일시 정지 → 비교 후 Firebase rows 일괄 복원
  */
 async function _autoRunComparison() {
     try {
         if (!AppState.empRawData?.length || !AppState.empColumns?.length) return;
+
+        // [FIX] 비교 분석 중 원격 수신 일시 정지 (race condition 방지)
+        if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = true;
 
         // 컬럼 자동 매핑 (guessColumn 사용)
         const empMapping = {};
@@ -321,7 +318,6 @@ async function _autoRunComparison() {
 
         // SKU와 Location은 필수
         if (!empMapping.sku || !empMapping.location) {
-            console.warn('[SessionDiscovery] 필수 컬럼 매핑 실패 — sku:', empMapping.sku, 'location:', empMapping.location);
             return;
         }
 
@@ -330,16 +326,28 @@ async function _autoRunComparison() {
             physical: { sku: '', barcode: '', name: '', qty: '', location: '' },
         };
 
-        // EMP-only 모드로 비교 실행
+        // EMP-only 모드로 비교 실행 (physicalQty=0으로 초기화됨)
         AppState.physicalRawData = null;
         if (typeof runComparison === 'function') {
             const result = runComparison(mappings);
             AppState.comparisonResult = result || [];
             AppState.filteredResult   = [...AppState.comparisonResult];
-            console.log(`[SessionDiscovery] 비교 분석 완료: ${AppState.comparisonResult.length}행`);
+        }
+
+        // [FIX] Firebase rows에서 physicalQty/reason/memo 일괄 복원
+        // 비교 분석이 physicalQty=0으로 초기화하므로, Firebase에 저장된 실사 데이터를 덮어씌움
+        const sessionId = window.FirebaseSync?.sessionId;
+        if (sessionId && typeof restoreRowsFromFirebase === 'function') {
+            const restored = await restoreRowsFromFirebase(sessionId);
+            if (restored > 0) {
+                console.log(`[Session] Firebase에서 ${restored}건 실사 데이터 복원 완료`);
+            }
         }
     } catch (e) {
-        console.error('[SessionDiscovery] 자동 비교 분석 실패:', e);
+        console.warn('[Session] 자동 비교 분석 실패:', e.message);
+    } finally {
+        // [FIX] 원격 수신 재개
+        if (typeof FirebaseSync !== 'undefined') FirebaseSync._processingPaused = false;
     }
 }
 
