@@ -42,7 +42,6 @@ async function parseFile(file) {
                     const testSheet = workbook.Sheets[workbook.SheetNames[0]];
                     const sample = XLSX.utils.sheet_to_csv(testSheet).slice(0, 500);
                     if ((sample.match(/\ufffd/g) || []).length > 3) {
-                        console.log('[File] EUC-KR 인코딩 감지 → 재파싱');
                         workbook = XLSX.read(data, { type: 'array', codepage: 51949 });
                     }
                 }
@@ -51,6 +50,11 @@ async function parseFile(file) {
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
                 if (jsonData.length === 0) {
                     reject(new Error('파일에 데이터가 없습니다.'));
+                    return;
+                }
+                const MAX_ROWS = 100000;
+                if (jsonData.length > MAX_ROWS) {
+                    reject(new Error(`데이터가 너무 많습니다. 최대 ${MAX_ROWS.toLocaleString()}행까지 지원합니다. (현재: ${jsonData.length.toLocaleString()}행)`));
                     return;
                 }
                 resolve({ columns: Object.keys(jsonData[0]), rows: jsonData });
@@ -79,6 +83,12 @@ async function handleFileSelect(type, file) {
         return;
     }
 
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+    if (file.size > MAX_FILE_SIZE) {
+        toast(`파일 크기가 너무 큽니다. 50MB 이하 파일만 업로드 가능합니다. (현재: ${(file.size / 1024 / 1024).toFixed(1)}MB)`, 'error');
+        return;
+    }
+
     try {
         setLoading(true);
         const result = await parseFile(file);
@@ -96,7 +106,6 @@ async function handleFileSelect(type, file) {
 
         if (AppState.empRawData) buildColumnMapping();
     } catch (err) {
-        console.error('[FileManager]', err);
         toast(err.message, 'error');
     } finally {
         setLoading(false);
@@ -135,7 +144,6 @@ async function handleMultiPhysicalFiles(files) {
 
         if (AppState.empRawData) buildColumnMapping();
     } catch (err) {
-        console.error('[FileManager] 다중 파일 로드 오류:', err);
         toast('파일 로드 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);
@@ -238,7 +246,6 @@ async function fetchGoogleSheetEMP() {
         toast(`구글 시트 연동 완료 — ${jsonData.length}행 로드됨`, 'success');
         buildColumnMapping();
     } catch (err) {
-        console.error('[FileManager] Google Sheet EMP 오류:', err);
         toast('구글 시트 불러오기 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);
@@ -273,7 +280,6 @@ async function fetchGoogleSheetPhysical() {
         toast(`✅ 실사 데이터 연동 완료 — ${jsonData.length}행 로드됨`, 'success');
         if (AppState.empRawData) buildColumnMapping();
     } catch (err) {
-        console.error('[FileManager] Google Sheet Physical 오류:', err);
         toast('실사 데이터 불러오기 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);
@@ -287,6 +293,8 @@ async function fetchGoogleSheetPhysical() {
  * 실사 수량, 사유, 메모는 그대로 유지됩니다.
  */
 async function refreshEMPData() {
+    // [QC] 런타임 역할 체크 — admin/teamlead만 허용
+    if (!requireRole(['admin', 'teamlead'])) return;
     await loadXLSX();
     if (!AppState.comparisonResult || AppState.comparisonResult.length === 0) {
         toast('먼저 비교 분석을 실행한 후 갱신하세요.', 'warning');
@@ -400,7 +408,6 @@ async function refreshEMPData() {
 
         toast(`✅ EMP 갱신 완료! 변경 ${updated}건 · 신규 ${added}건 · 동일 ${unchanged}건 (총 EMP ${jsonData.length}행)`, 'success');
     } catch (err) {
-        console.error('[FileManager] EMP 갱신 오류:', err);
         toast('EMP 갱신 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);

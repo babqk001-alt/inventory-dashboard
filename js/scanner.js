@@ -84,11 +84,10 @@ function processScanValue(scannedValue) {
             (r.sku && r.sku.toLowerCase() === term) ||
             (r.barcode && r.barcode.toLowerCase() === term)
         );
-        // 완전일치 없으면 부분일치 fallback
+        // [QC-P2] 완전일치 없으면 SKU만 부분일치 fallback (barcode는 exact-only)
         if (m.length === 0) {
             m = dataset.filter(r =>
-                (r.sku && r.sku.toLowerCase().includes(term)) ||
-                (r.barcode && r.barcode.toLowerCase().includes(term))
+                (r.sku && r.sku.toLowerCase().includes(term))
             );
         }
         return m;
@@ -499,6 +498,9 @@ function openCameraScanner() {
         return;
     }
 
+    // 이전 인스턴스 잔재 제거 (재오픈 시 DOM 충돌 방지)
+    document.getElementById('camera-reader').innerHTML = '';
+
     if (!AppState.cameraScanner) {
         AppState.cameraScanner = new Html5Qrcode('camera-reader');
     }
@@ -539,8 +541,7 @@ function openCameraScanner() {
         (_errorMessage) => {
             // 프레임별 인식 실패 무시 (바코드 미감지 상태)
         }
-    ).catch(err => {
-        console.error('Camera start error:', err);
+    ).catch(() => {
         toast('카메라를 시작할 수 없습니다. 카메라 권한을 확인해주세요.', 'error');
         closeCameraScanner();
     });
@@ -552,9 +553,16 @@ function closeCameraScanner() {
 
     if (AppState.cameraScanner && AppState.cameraScanner.isScanning) {
         AppState.cameraScanner.stop()
-            .then(() => hide(modal))
-            .catch(() => hide(modal));
+            .then(() => {
+                AppState.cameraScanner = null;
+                hide(modal);
+            })
+            .catch(() => {
+                AppState.cameraScanner = null;
+                hide(modal);
+            });
     } else {
+        AppState.cameraScanner = null;
         hide(modal);
     }
 }

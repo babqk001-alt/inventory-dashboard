@@ -542,6 +542,8 @@ function handleLogout() {
 // ══════════════════════════════════════════════════════════
 
 function openUserManageModal() {
+    // [QC] 런타임 역할 체크 — admin만 허용
+    if (!requireRole(['admin'])) return;
     const modal = document.getElementById('user-manage-modal');
     if (!modal) return;
     modal.style.display = 'flex';
@@ -554,6 +556,8 @@ function closeUserManageModal() {
 }
 
 async function loadUserList() {
+    // [QC] 런타임 역할 체크 — admin만 허용
+    if (!requireRole(['admin'])) return;
     const listEl = document.getElementById('user-manage-list');
     if (!listEl) return;
     const db = (window.FirebaseSync && FirebaseSync.db) || (window.firebase && firebase.database());

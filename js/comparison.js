@@ -163,6 +163,19 @@ function validateMappings(mappings) {
             }
         }
     }
+    // [QC-P2] 컬럼 중복 매핑 검증
+    const empCols = Object.values(mappings.emp).filter(Boolean);
+    if (empCols.length !== new Set(empCols).size) {
+        toast('EMP 데이터에서 동일 컬럼이 여러 필드에 중복 선택되었습니다.', 'error');
+        return false;
+    }
+    if (AppState.physicalRawData && AppState.physicalRawData.length > 0) {
+        const physCols = Object.values(mappings.physical).filter(Boolean);
+        if (physCols.length !== new Set(physCols).size) {
+            toast('실사 데이터에서 동일 컬럼이 여러 필드에 중복 선택되었습니다.', 'error');
+            return false;
+        }
+    }
     return true;
 }
 

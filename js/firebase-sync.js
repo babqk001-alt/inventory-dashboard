@@ -502,7 +502,12 @@ async function restoreRowsFromFirebase(sessionId) {
             if (typeof data.physicalQty === 'number') {
                 row.physicalQty = data.physicalQty;
                 row.difference  = data.physicalQty - (row.empQty || 0);
-                row.status      = data.physicalQty === row.empQty ? 'MATCH' : 'MISMATCH';
+                // [QC-P1] 원본 status 보존: Firebase에 저장된 status 우선, 없으면 재계산
+                if (data.status) {
+                    row.status = data.status;
+                } else {
+                    row.status = row.difference === 0 ? 'MATCH' : 'MISMATCH';
+                }
                 restored++;
             }
             // reason / memo 복원

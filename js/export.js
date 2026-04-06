@@ -25,7 +25,11 @@ function generateCSVString(includeBOM = true) {
     let csv = (includeBOM ? '\uFEFF' : '') + headers.join(',') + '\n';
     rows.forEach(row => {
         csv += row.map(val => {
-            const s = String(val ?? '');
+            let s = String(val ?? '');
+            // [QC-P2] CSV 수식 인젝션 방어: 숫자가 아닌 값에서 수식 트리거 문자 이스케이프
+            if (s.length > 0 && /^[=+\-@\t]/.test(s) && isNaN(Number(s))) {
+                s = "'" + s;
+            }
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         }).join(',') + '\n';
     });
@@ -274,6 +278,8 @@ function autoMapRecountColumns(cols) {
  * @param {File} file - 업로드된 파일
  */
 async function importRecountData(file) {
+    // [QC] 런타임 역할 체크 — admin/teamlead만 허용
+    if (!requireRole(['admin', 'teamlead'])) return;
     if (!AppState.comparisonResult || AppState.comparisonResult.length === 0) {
         toast('먼저 비교 분석을 실행한 후 업로드하세요.', 'warning');
         return;
@@ -359,7 +365,10 @@ async function importRecountData(file) {
                 }
                 r.physicalQty = newQty;
                 r.difference = newQty - r.empQty;
-                r.status = r.difference === 0 ? 'MATCH' : 'MISMATCH';
+                // [QC-P1] 특수 상태 보존: LOCATION_SHIFT, ONLY_IN_EMP, ONLY_IN_PHYSICAL은 유지
+                if (r.status !== 'LOCATION_SHIFT' && r.status !== 'ONLY_IN_EMP' && r.status !== 'ONLY_IN_PHYSICAL') {
+                    r.status = r.difference === 0 ? 'MATCH' : 'MISMATCH';
+                }
                 r._touched = true;
                 AppState.recountData[r._rowId] = newQty;
                 applied++;
@@ -423,7 +432,6 @@ async function importRecountData(file) {
         toast(`✅ 재실사 결과: ${applied}건 적용, ${addedCount > 0 ? addedCount + '건 신규 추가, ' : ''}${skipped}건 스킵`, 'success');
 
     } catch (err) {
-        console.error('Recount import error:', err);
         toast('재실사 결과 업로드 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);
@@ -1174,7 +1182,6 @@ async function mergeExternalData(file) {
         toast(`✅ 병합 완료! 업데이트 ${updated}건 · 신규 추가 ${added}건 · 건너뜀 ${skipped}건`, 'success');
 
     } catch (err) {
-        console.error(err);
         toast('파일 병합 실패: ' + err.message, 'error');
     } finally {
         setLoading(false);
@@ -1302,7 +1309,11 @@ function uploadToDrive() {
         const row = [r.sku, r.barcode, r.name, r.location, r.warehouseZone,
             r.empQty, r.physicalQty, r.difference, r.status, r.reason || '', r.memo || ''];
         csvString += row.map(val => {
-            const s = String(val ?? '');
+            let s = String(val ?? '');
+            // [QC-P2] CSV 수식 인젝션 방어
+            if (s.length > 0 && /^[=+\-@\t]/.test(s) && isNaN(Number(s))) {
+                s = "'" + s;
+            }
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         }).join(',') + '\n';
     });
@@ -1346,31 +1357,22 @@ function uploadToDrive() {
     })
     .then(response => response.text())
     .then(rawText => {
-        console.log('[Drive Upload] Raw response:', rawText);
-
         let result;
         try {
             result = JSON.parse(rawText);
         } catch (parseErr) {
-            // JSON 파싱 실패 시 원문에 success 포함 여부로 판단
-            if (rawText.includes('"status":"success"')) {
-                toast(`✅ "${fileName}" 전송 완료! 구글 드라이브에 저장되었습니다.`, 'success');
-                return;
-            }
-            console.error('[Drive Upload] JSON parse failed:', parseErr);
-            toast('⚠️ 전송 처리 중입니다. 구글 드라이브 폴더를 확인해 주세요.', 'warning');
+            toast('⚠️ 서버 응답을 처리할 수 없습니다. 구글 드라이브 폴더를 확인해 주세요.', 'warning');
             return;
         }
 
-        if (result.status === 'success' || rawText.includes('"status":"success"')) {
+        if (result.status === 'success') {
             toast(`✅ "${fileName}" 전송 완료! 구글 드라이브에 저장되었습니다.`, 'success');
         } else {
             toast(`⚠️ 서버 응답 오류: ${result.message || JSON.stringify(result)}`, 'error');
         }
     })
-    .catch(err => {
+    .catch(() => {
         // 네트워크 에러: 파일이 이미 업로드되었을 수 있으므로 부드럽게 안내
-        console.error('[Drive Upload Error]', err);
         toast('⚠️ 전송 처리 중입니다. 구글 드라이브 폴더를 확인해 주세요.', 'warning');
     })
     .finally(() => {
