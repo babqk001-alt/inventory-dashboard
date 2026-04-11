@@ -85,7 +85,8 @@
     --radius:     6px;
     --radius-md:  8px;
     --radius-lg:  12px;
-    --radius-xl:  9999px;
+    --radius-xl:  20px;
+    --radius-pill: 9999px;
 
     /* Shadows — Vercel shadow-as-border philosophy */
     --shadow-sm: rgba(0,0,0,0.08) 0px 0px 0px 1px;
@@ -2910,10 +2911,9 @@ tr.row-done td { color: var(--text-muted) !important; }
     inset: 0;
     z-index: 9999;
     background:
-        radial-gradient(ellipse at 20% 50%, rgba(79, 70, 229, 0.15) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 80%, rgba(14, 165, 233, 0.10) 0%, transparent 50%),
-        linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
+        radial-gradient(ellipse at 20% 50%, rgba(23, 23, 23, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0, 0, 0, 0.06) 0%, transparent 50%),
+        linear-gradient(135deg, #0a0a0a 0%, #171717 50%, #0a0a0a 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2938,12 +2938,12 @@ tr.row-done td { color: var(--text-muted) !important; }
     }
 }
 [data-theme="dark"] .login-modal {
-    background: rgba(30, 41, 59, 0.92);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    background: rgba(23, 23, 23, 0.92);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), rgba(255,255,255,0.06) 0px 0px 0px 1px;
 }
 @supports (backdrop-filter: blur(24px)) {
     [data-theme="dark"] .login-modal {
-        background: rgba(30, 41, 59, 0.75);
+        background: rgba(23, 23, 23, 0.75);
         backdrop-filter: blur(24px) saturate(180%);
         -webkit-backdrop-filter: blur(24px) saturate(180%);
     }
