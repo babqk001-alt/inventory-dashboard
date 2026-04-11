@@ -18,51 +18,58 @@
     border: 0;
 }
 
-/* ── CSS Variables / Design Tokens ────────────────── */
+/* ── CSS Variables / Design Tokens — Vercel Style ─── */
 :root {
-    /* Typography */
-    --font-family: 'Pretendard Variable', 'Pretendard', -apple-system,
-                   BlinkMacSystemFont, 'Apple SD Gothic Neo', system-ui, sans-serif;
-    --font-size-xs:   0.7rem;    /* 9.8px  — caption */
-    --font-size-sm:   0.8rem;    /* 11.2px — small text */
-    --font-size-base: 0.9rem;    /* 12.6px — body */
-    --font-size-md:   1rem;      /* 14px   — default */
-    --font-size-lg:   1.15rem;   /* 16.1px — subheading */
-    --font-size-xl:   1.4rem;    /* 19.6px — heading */
-    --font-size-2xl:  1.8rem;    /* 25.2px — page title */
-    --font-size-3xl:  2.25rem;   /* 31.5px — hero */
+    /* Typography — Geist + Pretendard fallback for Korean */
+    --font-family: 'Geist', 'Pretendard Variable', 'Pretendard', -apple-system,
+                   BlinkMacSystemFont, system-ui, sans-serif;
+    --font-mono:   'Geist Mono', ui-monospace, SFMono-Regular, 'Roboto Mono', monospace;
+    --font-size-xs:   0.75rem;   /* 12px  — caption */
+    --font-size-sm:   0.813rem;  /* 13px  — small text */
+    --font-size-base: 0.875rem;  /* 14px  — body */
+    --font-size-md:   1rem;      /* 16px  — default */
+    --font-size-lg:   1.125rem;  /* 18px  — subheading */
+    --font-size-xl:   1.5rem;    /* 24px  — heading */
+    --font-size-2xl:  2rem;      /* 32px  — page title */
+    --font-size-3xl:  3rem;      /* 48px  — hero */
+    font-feature-settings: "liga" 1;
 
-    /* Primary palette */
-    --primary:       #4F46E5;
-    --primary-light: #EEF2FF;
-    --primary-dark:  #3730A3;
+    /* Primary palette — Vercel monochrome */
+    --primary:       #171717;
+    --primary-light: #fafafa;
+    --primary-dark:  #000000;
 
-    /* Status colors */
+    /* Workflow accent colors */
+    --accent-blue:   #0a72ef;
+    --accent-pink:   #de1d8d;
+    --accent-red:    #ff5b4f;
+
+    /* Status colors — functional, kept distinct */
     --match:                #10B981;
-    --match-bg:             #ECFDF5;
-    --match-border:         #A7F3D0;
+    --match-bg:             #f0fdf8;
+    --match-border:         rgba(16,185,129,0.2);
     --mismatch:             #F59E0B;
-    --mismatch-bg:          #FFFBEB;
-    --mismatch-border:      #FDE68A;
+    --mismatch-bg:          #fffcf0;
+    --mismatch-border:      rgba(245,158,11,0.2);
     --only-emp:             #EF4444;
-    --only-emp-bg:          #FEF2F2;
-    --only-emp-border:      #FECACA;
-    --only-physical:        #8B5CF6;
-    --only-physical-bg:     #F5F3FF;
-    --only-physical-border: #DDD6FE;
-    --location-shift:       #0EA5E9;
-    --location-shift-bg:    #F0F9FF;
-    --location-shift-border:#BAE6FD;
+    --only-emp-bg:          #fef5f5;
+    --only-emp-border:      rgba(239,68,68,0.2);
+    --only-physical:        #7928ca;
+    --only-physical-bg:     #faf5ff;
+    --only-physical-border: rgba(121,40,202,0.2);
+    --location-shift:       #0070f3;
+    --location-shift-bg:    #f0f7ff;
+    --location-shift-border:rgba(0,112,243,0.2);
 
-    /* Neutrals (WCAG AA compliant) */
-    --bg:             #F1F5F9;
-    --card-bg:        #FFFFFF;
-    --border:         #E2E8F0;
-    --text:           #0F172A;
-    --text-secondary: #475569;
-    --text-muted:     #64748B;
+    /* Neutrals — Vercel gray scale */
+    --bg:             #fafafa;
+    --card-bg:        #ffffff;
+    --border:         #ebebeb;
+    --text:           #171717;
+    --text-secondary: #4d4d4d;
+    --text-muted:     #666666;
 
-    /* Spacing (4px base) */
+    /* Spacing (8px base — Vercel scale) */
     --space-1:  4px;
     --space-2:  8px;
     --space-3:  12px;
@@ -73,18 +80,18 @@
     --space-10: 40px;
     --space-12: 48px;
 
-    /* Radius */
-    --radius-sm:  6px;
-    --radius:     10px;
-    --radius-md:  10px;
-    --radius-lg:  14px;
-    --radius-xl:  20px;
+    /* Radius — Vercel scale */
+    --radius-sm:  4px;
+    --radius:     6px;
+    --radius-md:  8px;
+    --radius-lg:  12px;
+    --radius-xl:  9999px;
 
-    /* Shadows (3-level) — 강화: 카드가 떠있는 느낌 */
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-    --shadow:    0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
-    --shadow-lg: 0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+    /* Shadows — Vercel shadow-as-border philosophy */
+    --shadow-sm: rgba(0,0,0,0.08) 0px 0px 0px 1px;
+    --shadow:    rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px;
+    --shadow-md: rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px, rgba(0,0,0,0.04) 0px 8px 8px -8px;
+    --shadow-lg: rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px, rgba(0,0,0,0.04) 0px 8px 8px -8px, #fafafa 0px 0px 0px 1px inset;
 
     /* Transition */
     --transition-fast:   150ms ease;
@@ -103,44 +110,44 @@
     --accent:       var(--primary);
 }
 
-/* ── 다크모드 (WCAG AA compliant) ──────────────────── */
+/* ── 다크모드 — Vercel Dark (WCAG AA compliant) ────── */
 [data-theme="dark"] {
-    --primary:       #818CF8;
-    --primary-light: #1E1B4B;
-    --primary-dark:  #6366F1;
+    --primary:       #ededed;
+    --primary-light: #1a1a1a;
+    --primary-dark:  #ffffff;
 
     --match:                #34D399;
-    --match-bg:             #052e16;
-    --match-border:         #065F46;
+    --match-bg:             #0a2618;
+    --match-border:         rgba(52,211,153,0.25);
     --mismatch:             #FBBF24;
-    --mismatch-bg:          #1c1500;
-    --mismatch-border:      #78350F;
+    --mismatch-bg:          #1f1a05;
+    --mismatch-border:      rgba(251,191,36,0.25);
     --only-emp:             #F87171;
-    --only-emp-bg:          #1f0505;
-    --only-emp-border:      #7F1D1D;
-    --only-physical:        #A78BFA;
-    --only-physical-bg:     #160a2e;
-    --only-physical-border: #4C1D95;
-    --location-shift:       #38BDF8;
-    --location-shift-bg:    #041f2e;
-    --location-shift-border:#0C4A6E;
+    --only-emp-bg:          #1f0a0a;
+    --only-emp-border:      rgba(248,113,113,0.25);
+    --only-physical:        #c084fc;
+    --only-physical-bg:     #1a0a2e;
+    --only-physical-border: rgba(192,132,252,0.25);
+    --location-shift:       #60a5fa;
+    --location-shift-bg:    #0a1a2e;
+    --location-shift-border:rgba(96,165,250,0.25);
 
-    --bg:             #0F172A;
-    --card-bg:        #1E293B;
-    --border:         #334155;
-    --text:           #F1F5F9;
-    --text-secondary: #CBD5E1;
-    --text-muted:     #94A3B8;
+    --bg:             #0a0a0a;
+    --card-bg:        #171717;
+    --border:         #2e2e2e;
+    --text:           #ededed;
+    --text-secondary: #a1a1a1;
+    --text-muted:     #707070;
 
     --bg-main:       var(--bg);
     --bg-card:       var(--card-bg);
     --text-primary:  var(--text);
     --accent:        var(--primary);
 
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-    --shadow:    0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
-    --shadow-lg: 0 10px 24px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2);
+    --shadow-sm: rgba(255,255,255,0.06) 0px 0px 0px 1px;
+    --shadow:    rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.2) 0px 2px 4px;
+    --shadow-md: rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.3) 0px 4px 8px;
+    --shadow-lg: rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.4) 0px 8px 16px;
 }
 
 /* ── Reset & Base ──────────────────────────────────── */
@@ -149,9 +156,7 @@ html { font-size: 16px; }
 body {
     font-family: var(--font-family);
     background: var(--bg);
-    background-image:
-        radial-gradient(ellipse at 10% 0%, rgba(79,70,229,0.04) 0%, transparent 60%),
-        radial-gradient(ellipse at 90% 100%, rgba(139,92,246,0.04) 0%, transparent 60%);
+    background-image: none;
     background-attachment: fixed;
     color: var(--text);
     line-height: 1.6;
@@ -175,48 +180,48 @@ select, input, textarea { font-family: inherit; font-size: var(--font-size-base)
 /* ── 접근성: 시스템 다크모드 자동 감지 ────────────── */
 @media (prefers-color-scheme: dark) {
     html:not([data-theme]) {
-        --primary:       #818CF8;
-        --primary-light: #1E1B4B;
-        --primary-dark:  #6366F1;
+        --primary:       #ededed;
+        --primary-light: #1a1a1a;
+        --primary-dark:  #ffffff;
 
         --match:                #34D399;
-        --match-bg:             #052e16;
-        --match-border:         #065F46;
+        --match-bg:             #0a2618;
+        --match-border:         rgba(52,211,153,0.25);
         --mismatch:             #FBBF24;
-        --mismatch-bg:          #1c1500;
-        --mismatch-border:      #78350F;
+        --mismatch-bg:          #1f1a05;
+        --mismatch-border:      rgba(251,191,36,0.25);
         --only-emp:             #F87171;
-        --only-emp-bg:          #1f0505;
-        --only-emp-border:      #7F1D1D;
-        --only-physical:        #A78BFA;
-        --only-physical-bg:     #160a2e;
-        --only-physical-border: #4C1D95;
-        --location-shift:       #38BDF8;
-        --location-shift-bg:    #041f2e;
-        --location-shift-border:#0C4A6E;
+        --only-emp-bg:          #1f0a0a;
+        --only-emp-border:      rgba(248,113,113,0.25);
+        --only-physical:        #c084fc;
+        --only-physical-bg:     #1a0a2e;
+        --only-physical-border: rgba(192,132,252,0.25);
+        --location-shift:       #60a5fa;
+        --location-shift-bg:    #0a1a2e;
+        --location-shift-border:rgba(96,165,250,0.25);
 
-        --bg:             #0F172A;
-        --card-bg:        #1E293B;
-        --border:         #334155;
-        --text:           #F1F5F9;
-        --text-secondary: #CBD5E1;
-        --text-muted:     #94A3B8;
+        --bg:             #0a0a0a;
+        --card-bg:        #171717;
+        --border:         #2e2e2e;
+        --text:           #ededed;
+        --text-secondary: #a1a1a1;
+        --text-muted:     #707070;
 
         --bg-main:       var(--bg);
         --bg-card:       var(--card-bg);
         --text-primary:  var(--text);
         --accent:        var(--primary);
 
-        --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-        --shadow:    0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-        --shadow-md: 0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
-        --shadow-lg: 0 10px 24px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.2);
+        --shadow-sm: rgba(255,255,255,0.06) 0px 0px 0px 1px;
+        --shadow:    rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.2) 0px 2px 4px;
+        --shadow-md: rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.3) 0px 4px 8px;
+        --shadow-lg: rgba(255,255,255,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.4) 0px 8px 16px;
     }
 }
 
 /* ── 접근성: focus 스타일 표준화 ──────────────────── */
 :focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid hsla(212, 100%, 48%, 1);
     outline-offset: 2px;
 }
 
@@ -225,7 +230,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid hsla(212, 100%, 48%, 1);
     outline-offset: 2px;
 }
 
